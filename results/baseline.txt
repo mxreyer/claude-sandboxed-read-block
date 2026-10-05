@@ -1,0 +1,17 @@
+All seven tests ran: T2, T3 and T6 worked, and T1, T4, T5 and T7 were denied. I ran every command exactly as written, with no retries and no `dangerouslyDisableSandbox`.
+
+| Test | Command | Outcome | Denial message / first error line |
+|---|---|---|---|
+| T1 | `cd sandboxed-read-block && cat hooks/hooks.json` | **denied** | `cd names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
+| T2 | `F=sandboxed-read-block/hooks/hooks.json; cat "$F"` | ran OK | — (printed `{ "modules": ["./register.ts"] }`) |
+| T3 | `cat sandboxed-read-block/hooks/*.json` | ran OK | — (printed `{ "modules": ["./register.ts"] }`) |
+| T4 | `cat ~/.zshrc` | **denied** | `Reads outside the working directories are blocked (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
+| T5 | `cat /etc/hosts` | **denied** | `Reads outside the working directories are blocked (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
+| T6 | `git status` | ran OK | — (on branch `claude/focused-feynman-t9yicz`, up to date; one untracked folder, `results/`) |
+| T7 | Read `~/.zshrc` | **denied** | `/Users/max/.zshrc is outside /Users/max/claude/tmp-claude-permissions-plugin; the permissions.blockReadsOutsideWorkingDirectories setting blocks reads outside the working directories. Ask the user to add the directory with /add-dir, or to remove that setting.` |
+
+Two results you might want to look into:
+- **T1:** the message says the `cd` target is "computed at run time", but `sandboxed-read-block` is a literal path. Either the check treats every `cd` as unverifiable, or this message is wrong for the literal case.
+- **T2 and T3:** the read block can't check commands that use a variable or a glob, but both went through without a denial. That looks like the mod passing them to the OS sandbox, as intended. Since both paths are inside the working directory, though, this run doesn't show whether the sandbox would stop the same kind of command aimed outside it.
+
+Separately: the Gmail, Google Calendar and Google Drive connectors need to be authorized in your claude.ai connector settings before they can be used. None of these tests needed them.
