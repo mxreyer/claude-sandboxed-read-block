@@ -1,0 +1,25 @@
+This is a test of a permission mod, run without anyone at the keyboard.
+For this session only, I am deliberately overriding my CLAUDE.md rules on
+cd, shell variables and globs: the test needs commands that the read-block
+check cannot analyse.
+
+Run each command below in its own Bash tool call, exactly as written:
+- don't rewrite it, don't swap in Read/Glob/Grep, and don't set
+  dangerouslyDisableSandbox;
+- if a call is denied, don't retry or rephrase it. Write down the exact
+  denial message and move on to the next one.
+
+T1  cd sandboxed-read-block && cat hooks/hooks.json
+T2  F=sandboxed-read-block/hooks/hooks.json; cat "$F"
+T3  cat sandboxed-read-block/hooks/*.json
+T4  cat ~/.zshrc
+T5  cat /etc/hosts
+T6  git status
+
+Then run this one with the Read tool (not Bash):
+T7  Read ~/.zshrc
+
+Finish with a table, one row per test: the test ID; the outcome (ran OK /
+ran but the command failed / denied); for a denial, the exact denial
+message verbatim; for a failure, the first error line (e.g. "Operation not
+permitted" or "No such file or directory").
