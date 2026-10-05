@@ -22,7 +22,7 @@ const mentionsExcluded = (command: string, excluded: readonly string[]) =>
   })
 
 export const register: Register = (on, options) => {
-  const verdict = options.verdict === 'allow' ? 'allow' : 'ask'
+  const verdict = options.verdict === 'ask' ? 'ask' : 'allow'
 
   on('tool.check', { tool: 'Bash' }, async ($, e, next) => {
     const result = await next(e)

@@ -6,9 +6,9 @@
     "verdict": {
       "type": "string",
       "title": "Verdict for sandboxed commands",
-      "description": "ask: drop the read-block reason and let the mode's decider (the auto-mode classifier) judge the command; allow: run it without any further check",
-      "options": ["ask", "allow"],
-      "default": "ask"
+      "description": "allow: run the command without any further check; ask: drop the read-block reason but still ask (in 2.1.289 that ask goes to the person, not the auto-mode classifier)",
+      "options": ["allow", "ask"],
+      "default": "allow"
     }
   }
 }

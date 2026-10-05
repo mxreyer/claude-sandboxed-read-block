@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Runs test-prompt.txt headless three times and pushes the results:
 #   baseline        no mod
-#   with-mod-ask    the mod with its default verdict (ask)
-#   with-mod-allow  a temporary copy of the mod whose default verdict is allow
+#   with-mod-allow  the mod with its default verdict (allow)
+#   with-mod-ask    a temporary copy of the mod whose default verdict is ask
 # The repo's own copy of the mod is never edited.
 #
 # Usage: ./run-tests.sh [--no-push]
@@ -29,16 +29,16 @@ PROMPT="$(cat "$REPO/test-prompt.txt")"
 OUT="$REPO/results"
 mkdir -p "$OUT"
 
-# The allow copy lives outside the repo and is removed on exit.
+# The ask copy lives outside the repo and is removed on exit.
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 cp -R "$REPO/sandboxed-read-block" "$WORK/sandboxed-read-block"
 rm -rf "$WORK/sandboxed-read-block/.claude-plugin/types"
 MANIFEST="$WORK/sandboxed-read-block/.claude-plugin/plugin.json"
-awk '{ sub(/"default": "ask"/, "\"default\": \"allow\"") } 1' "$MANIFEST" > "$MANIFEST.new"
+awk '{ sub(/"default": "allow"/, "\"default\": \"ask\"") } 1' "$MANIFEST" > "$MANIFEST.new"
 mv "$MANIFEST.new" "$MANIFEST"
-if ! grep -q '"default": "allow"' "$MANIFEST"; then
-  echo "could not switch the copy's verdict to allow; check $MANIFEST" >&2
+if ! grep -q '"default": "ask"' "$MANIFEST"; then
+  echo "could not switch the copy's verdict to ask; check $MANIFEST" >&2
   exit 1
 fi
 
@@ -58,8 +58,8 @@ run() {
 }
 
 run baseline
-run with-mod-ask --plugin-dir "$REPO/sandboxed-read-block"
-run with-mod-allow --plugin-dir "$WORK/sandboxed-read-block"
+run with-mod-allow --plugin-dir "$REPO/sandboxed-read-block"
+run with-mod-ask --plugin-dir "$WORK/sandboxed-read-block"
 
 if [[ $PUSH -eq 0 ]]; then
   echo "Results are in $OUT (not pushed)."

@@ -21,17 +21,17 @@ const engine = (on: On, core: ToolCheckResult, sandbox: object | undefined) => {
 }
 
 describe('read-block ask on a sandboxed Bash command', () => {
-  test('is handed back as a plain ask by default', async ($, on) => {
+  test('is allowed by default', async ($, on) => {
+    engine(on, OUTSIDE, SANDBOX_ON)
+    const r = await $.tool.check({ tool: 'Bash', input: { command: 'cat ../x' } })
+    expect(r.decision).toBe('allow')
+  })
+
+  test('is handed back as a plain ask when the verdict option is ask', { options: { verdict: 'ask' } }, async ($, on) => {
     engine(on, UNANALYZABLE, SANDBOX_ON)
     const r = await $.tool.check({ tool: 'Bash', input: { command: 'cat "$F"' } })
     expect(r.decision).toBe('ask')
     expect(r.reason).not.toContain('blockReadsOutsideWorkingDirectories')
-  })
-
-  test('is allowed when the verdict option is allow', { options: { verdict: 'allow' } }, async ($, on) => {
-    engine(on, OUTSIDE, SANDBOX_ON)
-    const r = await $.tool.check({ tool: 'Bash', input: { command: 'cat ../x' } })
-    expect(r.decision).toBe('allow')
   })
 
   test('ignores dangerouslyDisableSandbox when unsandboxed commands are off', { options: { verdict: 'allow' } }, async ($, on) => {
