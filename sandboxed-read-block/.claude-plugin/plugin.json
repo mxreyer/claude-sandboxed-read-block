@@ -1,0 +1,14 @@
+{
+  "name": "sandboxed-read-block",
+  "version": "0.1.0",
+  "description": "Stops permissions.blockReadsOutsideWorkingDirectories from forcing a prompt on Bash commands the sandbox already confines",
+  "userConfig": {
+    "verdict": {
+      "type": "string",
+      "title": "Verdict for sandboxed commands",
+      "description": "ask: drop the read-block reason and let the mode's decider (the auto-mode classifier) judge the command; allow: run it without any further check",
+      "options": ["ask", "allow"],
+      "default": "ask"
+    }
+  }
+}
