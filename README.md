@@ -32,6 +32,31 @@ The `verdict` option sets what the mod answers:
 | `allow` (default) | The command runs; the sandbox confines it. |
 | `ask` | Drops the read-block reason but still asks. In 2.1.289 that ask shows a permission dialog rather than going to the auto-mode classifier, so it doesn't remove prompts. |
 
+## Why not `autoAllowBashIfSandboxed: true`?
+
+That setting approves **every** sandboxed Bash command without classifier
+review. The sandbox limits where a command can read and write, but not what
+it does there: it doesn't stop deleting files in the project or sending data
+to an allowed domain. The classifier does.
+
+The mod skips the classifier only for commands where the read block was the
+sole reason to prompt:
+
+| Command | `autoAllowBashIfSandboxed: true` | The mod |
+|---|---|---|
+| `rm -rf src` (literal path) | runs unreviewed | classifier reviews it |
+| `git push --force`, `curl -d @data allowed-domain.com` | run unreviewed | classifier reviews them |
+| `cd src && rm -rf build` | runs unreviewed | runs unreviewed |
+| `python3 -c "…open('file')…"` | runs unreviewed | runs unreviewed |
+
+The mod doesn't pick commands by risk: a destructive command wrapped in
+`cd` or inline code skips review either way. Writing commands with literal
+paths, no `cd` and no inline code keeps them out of that group.
+
+Untested: whether `autoAllowBashIfSandboxed: true` removes the read-block
+prompts at all. Those prompts bypass the classifier and may bypass the
+auto-allow too.
+
 ## Install
 
 Add the folder to `~/.claude/settings.json` and restart Claude Code:
