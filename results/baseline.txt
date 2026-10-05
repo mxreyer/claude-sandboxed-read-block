@@ -1,0 +1,17 @@
+All 11 tests are recorded. T1 was blocked by the read-block check. T2 and T3 also go around that check (a shell variable and a glob), but the mod let both through and they printed the file. I ran nothing to fix the shell between T1 and T2, because T1 never ran and the shell stayed at the repository root.
+
+| Test | Outcome | Denial message / first error line |
+|---|---|---|
+| T1 `cd sandboxed-read-block && cat hooks/hooks.json` | denied | `cd names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
+| T2 `F=…; cat "$F"` | ran OK | — (printed `{ "modules": ["./register.ts"] }`) |
+| T3 `cat sandboxed-read-block/hooks/*.json` | ran OK | — (printed `{ "modules": ["./register.ts"] }`) |
+| T4 `cat ~/.zshrc` | denied | `Reads outside the working directories are blocked (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
+| T5 `cat /etc/hosts` | denied | `Reads outside the working directories are blocked (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
+| T6 `git status` | ran OK | — (clean tree; only `results/` untracked) |
+| T7 Read `~/.zshrc` | denied | `/Users/max/.zshrc is outside /Users/max/claude/tmp-claude-permissions-plugin; the permissions.blockReadsOutsideWorkingDirectories setting blocks reads outside the working directories. Ask the user to add the directory with /add-dir, or to remove that setting.` |
+| T8 `docker ps` | ran but the command failed | `(eval):1: command not found: docker` (exit 127) |
+| T9 `ls /run/user` | skipped (macOS) | — |
+| T10 `secret-tool search --all service x` | skipped (macOS) | — |
+| T11 `ls /proc` | skipped (macOS) | — (no PID count) |
+
+The T1 denial message says `cd` "names a path that is computed at run time", but the path in T1 was a literal. T8 says nothing about whether the sandbox exposes Docker, because Docker isn't installed on this machine.
