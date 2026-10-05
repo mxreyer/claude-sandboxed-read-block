@@ -77,3 +77,14 @@ Results on macOS with 2.1.289:
 | `cat ~/.zshrc` | prompt | runs; the sandbox refuses it: `Operation not permitted` |
 | `cat /etc/hosts` | prompt | runs (outside what the sandbox denies) |
 | Read tool on `~/.zshrc` | blocked | blocked |
+
+T8–T11 check what the sandbox exposes beyond files (T9–T11 are Linux only).
+With the mod, each should fail inside the sandbox; if one succeeds, close the
+gap before relying on the mod:
+
+| Test | Should | If it succeeds |
+|---|---|---|
+| T8 `docker ps` | fail to reach the daemon | Docker can read any file for the sandbox: keep its socket out of `sandbox.network.allowUnixSockets` and `docker` out of `excludedCommands` |
+| T9 `ls /run/user` | fail | add `/run/user` to `sandbox.filesystem.denyRead` |
+| T10 `secret-tool search --all service x` | fail | the keyring is reachable over D-Bus: deny `/run/user` and check that Unix sockets are blocked |
+| T11 `ls /proc` | list only a few PIDs | other processes' environment variables are readable |

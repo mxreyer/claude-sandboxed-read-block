@@ -8,6 +8,8 @@ Run each command below in its own Bash tool call, exactly as written:
   dangerouslyDisableSandbox;
 - if a call is denied, don't retry or rephrase it. Write down the exact
   denial message and move on to the next one.
+- if T1 leaves the shell inside sandboxed-read-block, return to the
+  repository root before T2 (that extra step is not a test).
 
 T1  cd sandboxed-read-block && cat hooks/hooks.json
 T2  F=sandboxed-read-block/hooks/hooks.json; cat "$F"
@@ -19,7 +21,15 @@ T6  git status
 Then run this one with the Read tool (not Bash):
 T7  Read ~/.zshrc
 
+Then these Bash commands, which check what the sandbox exposes beyond files.
+On macOS, skip T9-T11 and mark them "skipped (macOS)".
+T8   docker ps
+T9   ls /run/user
+T10  secret-tool search --all service x
+T11  ls /proc
+
 Finish with a table, one row per test: the test ID; the outcome (ran OK /
-ran but the command failed / denied); for a denial, the exact denial
-message verbatim; for a failure, the first error line (e.g. "Operation not
-permitted" or "No such file or directory").
+ran but the command failed / denied / skipped); for a denial, the exact
+denial message verbatim; for a failure, the first error line (e.g.
+"Operation not permitted" or "No such file or directory"). For T11, also
+give the number of numeric (PID) entries it listed.
