@@ -32,6 +32,11 @@ The `verdict` option sets what the mod answers:
 | `allow` (default) | The command runs; the sandbox confines it. |
 | `ask` | Drops the read-block reason but still asks. In 2.1.289 that ask shows a permission dialog rather than going to the auto-mode classifier, so it doesn't remove prompts. |
 
+While loaded, the mod pins `read-block mod on` under the prompt, so a
+missing line means it isn't loaded. Each prompt it skips shows a short
+notice with the command and bumps a count on that line (`read-block mod on ·
+3 prompts skipped`; the count restarts when the mod reloads).
+
 ## Why not `autoAllowBashIfSandboxed: true`?
 
 That setting approves **every** sandboxed Bash command without classifier

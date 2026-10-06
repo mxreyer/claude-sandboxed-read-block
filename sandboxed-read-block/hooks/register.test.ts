@@ -78,3 +78,42 @@ describe('left as core decided', () => {
     expect(await $.tool.check({ tool: 'Bash', input: { command: 'cat ~/.ssh/id' } })).toEqual(deny)
   })
 })
+
+describe('indicator', () => {
+  const ui = (on: On) => {
+    const seen = { status: [] as (string | undefined)[], toasts: [] as string[] }
+    on('ui.status', (_$, e) => { seen.status.push(e.text) })
+    on('ui.toast', (_$, e) => { seen.toasts.push(e.text) })
+    return seen
+  }
+
+  test('pins the status line at session start', async ($, on) => {
+    const seen = ui(on)
+    on('session.start', (_$, e) => ({ cwd: e.cwd }))
+    await $.session.start({ cwd: '/p', surface: 'terminal', isInteractive: true })
+    expect(seen.status).toEqual(['read-block mod on'])
+  })
+
+  test('counts and toasts each skipped prompt on a real call', async ($, on) => {
+    const seen = ui(on)
+    engine(on, OUTSIDE, SANDBOX_ON)
+    await $.tool.check({ tool: 'Bash', input: { command: 'cat ../x' }, tool_use_id: 't1' })
+    await $.tool.check({ tool: 'Bash', input: { command: 'cat ../y' }, tool_use_id: 't2' })
+    expect(seen.status).toEqual(['read-block mod on · 1 prompt skipped', 'read-block mod on · 2 prompts skipped'])
+    expect(seen.toasts).toEqual(['Skipped a read-block prompt: cat ../x', 'Skipped a read-block prompt: cat ../y'])
+  })
+
+  test('stays quiet on a prompt it keeps', async ($, on) => {
+    const seen = ui(on)
+    engine(on, OUTSIDE, undefined)
+    await $.tool.check({ tool: 'Bash', input: { command: 'cat ../x' }, tool_use_id: 't1' })
+    expect(seen.toasts).toEqual([])
+  })
+
+  test('stays quiet on a query', async ($, on) => {
+    const seen = ui(on)
+    engine(on, OUTSIDE, SANDBOX_ON)
+    await $.tool.check({ tool: 'Bash', input: { command: 'cat ../x' } })
+    expect(seen.toasts).toEqual([])
+  })
+})
