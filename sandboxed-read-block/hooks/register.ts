@@ -36,24 +36,31 @@ export const register: Register = (on, options) => {
   on('tool.check', { tool: 'Bash' }, async ($, e, next) => {
     const result = await next(e)
 
+    if (result.decision !== 'ask' || !result.reason?.includes(READ_BLOCK)) return result
+
     // Only the read block's own ask: not an ask rule, not a settings hook.
-    if (
-      result.decision !== 'ask' ||
-      result.rule !== undefined ||
-      result.hook !== undefined ||
-      !result.reason?.includes(READ_BLOCK)
-    ) {
+    if (result.rule !== undefined || result.hook !== undefined) {
+      if (e.tool_use_id !== undefined) {
+        $.ui.toast(`Kept a read-block prompt: decided by ${result.rule ?? `a ${result.hook} hook`}`)
+      }
       return result
     }
 
     const sandbox = ((await $.settings.read()).sandbox ?? {}) as SandboxSettings
     const input = e.input as BashInput
-    const runsSandboxed =
-      sandbox.enabled === true &&
-      (!input.dangerouslyDisableSandbox || sandbox.allowUnsandboxedCommands === false) &&
-      !mentionsExcluded(input.command ?? '', sandbox.excludedCommands ?? [])
+    const kept =
+      sandbox.enabled !== true
+        ? 'the sandbox is off'
+        : input.dangerouslyDisableSandbox && sandbox.allowUnsandboxedCommands !== false
+          ? 'the command may run unsandboxed'
+          : mentionsExcluded(input.command ?? '', sandbox.excludedCommands ?? [])
+            ? 'the command mentions an excluded command'
+            : undefined
 
-    if (!runsSandboxed) return result
+    if (kept !== undefined) {
+      if (e.tool_use_id !== undefined) $.ui.toast(`Kept a read-block prompt: ${kept}`)
+      return result
+    }
 
     // Real calls only: a query (no tool_use_id) skips no prompt.
     if (verdict === 'allow' && e.tool_use_id !== undefined) {

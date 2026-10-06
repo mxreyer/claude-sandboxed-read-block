@@ -103,10 +103,25 @@ describe('indicator', () => {
     expect(seen.toasts).toEqual(['Skipped a read-block prompt: cat ../x', 'Skipped a read-block prompt: cat ../y'])
   })
 
-  test('stays quiet on a prompt it keeps', async ($, on) => {
+  test('names the check that kept a prompt', async ($, on) => {
     const seen = ui(on)
     engine(on, OUTSIDE, undefined)
     await $.tool.check({ tool: 'Bash', input: { command: 'cat ../x' }, tool_use_id: 't1' })
+    expect(seen.toasts).toEqual(['Kept a read-block prompt: the sandbox is off'])
+    expect(seen.status).toEqual([])
+  })
+
+  test('names the rule that kept a prompt', async ($, on) => {
+    const seen = ui(on)
+    engine(on, { ...OUTSIDE, rule: 'Bash(cat:*)' }, SANDBOX_ON)
+    await $.tool.check({ tool: 'Bash', input: { command: 'cat ../x' }, tool_use_id: 't1' })
+    expect(seen.toasts).toEqual(['Kept a read-block prompt: decided by Bash(cat:*)'])
+  })
+
+  test('stays quiet on an ask that is not the read block', async ($, on) => {
+    const seen = ui(on)
+    engine(on, { decision: 'ask', reason: 'something else' }, SANDBOX_ON)
+    await $.tool.check({ tool: 'Bash', input: { command: 'x' }, tool_use_id: 't1' })
     expect(seen.toasts).toEqual([])
   })
 

@@ -35,7 +35,9 @@ The `verdict` option sets what the mod answers:
 While loaded, the mod pins `read-block mod on` under the prompt, so a
 missing line means it isn't loaded. Each prompt it skips shows a short
 notice with the command and bumps a count on that line (`read-block mod on ·
-3 prompts skipped`; the count restarts when the mod reloads).
+3 prompts skipped`; the count restarts when the mod reloads). When it sees a
+read-block prompt but keeps it, a notice names the check that kept it (e.g.
+`Kept a read-block prompt: the sandbox is off`).
 
 ## Why not `autoAllowBashIfSandboxed: true`?
 
