@@ -39,6 +39,12 @@ notice with the command and bumps a count on that line (`read-block mod on ·
 read-block prompt but keeps it, a notice names the check that kept it (e.g.
 `Kept a read-block prompt: the sandbox is off`).
 
+If a prompt appears without any notice, turn on the `debug` option (`/config`,
+"Show every Bash prompt's reason"): each Bash prompt the mod leaves alone then
+shows the reason Claude Code gave it. A compound command can be asked for a
+reason other than the read block (e.g. "Multiple directory changes in one
+command require approval for clarity"), which the mod deliberately keeps.
+
 ## Why not `autoAllowBashIfSandboxed: true`?
 
 That setting approves **every** sandboxed Bash command without classifier

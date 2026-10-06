@@ -36,7 +36,13 @@ export const register: Register = (on, options) => {
   on('tool.check', { tool: 'Bash' }, async ($, e, next) => {
     const result = await next(e)
 
-    if (result.decision !== 'ask' || !result.reason?.includes(READ_BLOCK)) return result
+    if (result.decision !== 'ask') return result
+    if (!result.reason?.includes(READ_BLOCK)) {
+      if (options.debug === true && e.tool_use_id !== undefined) {
+        $.ui.toast(`Not a read-block prompt: ${(result.reason ?? '(no reason)').slice(0, 200)}`, { timeoutMs: 15000 })
+      }
+      return result
+    }
 
     // Only the read block's own ask: not an ask rule, not a settings hook.
     if (result.rule !== undefined || result.hook !== undefined) {

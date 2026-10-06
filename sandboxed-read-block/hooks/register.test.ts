@@ -82,8 +82,8 @@ describe('left as core decided', () => {
 describe('indicator', () => {
   const ui = (on: On) => {
     const seen = { status: [] as (string | undefined)[], toasts: [] as string[] }
-    on('ui.status', (_$, e) => { seen.status.push(e.text) })
-    on('ui.toast', (_$, e) => { seen.toasts.push(e.text) })
+    on('ui.status', (_$, e) => { seen.status.push(e.text); return { value: undefined } })
+    on('ui.toast', (_$, e) => { seen.toasts.push(e.text); return { value: undefined } })
     return seen
   }
 
@@ -130,5 +130,28 @@ describe('indicator', () => {
     engine(on, OUTSIDE, SANDBOX_ON)
     await $.tool.check({ tool: 'Bash', input: { command: 'cat ../x' } })
     expect(seen.toasts).toEqual([])
+  })
+})
+
+describe('debug', () => {
+  const OTHER: ToolCheckResult = { decision: 'ask', reason: 'Multiple directory changes in one command require approval for clarity' }
+  const toasts = (on: On) => {
+    const seen: string[] = []
+    on('ui.toast', (_$, e) => { seen.push(e.text); return { value: undefined } })
+    return seen
+  }
+
+  test('names the reason of a prompt it leaves alone', { options: { debug: true } }, async ($, on) => {
+    const seen = toasts(on)
+    engine(on, OTHER, SANDBOX_ON)
+    expect(await $.tool.check({ tool: 'Bash', input: { command: 'cd a; cd b' }, tool_use_id: 't1' })).toEqual(OTHER)
+    expect(seen).toEqual([`Not a read-block prompt: ${OTHER.reason}`])
+  })
+
+  test('stays quiet when off', async ($, on) => {
+    const seen = toasts(on)
+    engine(on, OTHER, SANDBOX_ON)
+    await $.tool.check({ tool: 'Bash', input: { command: 'cd a; cd b' }, tool_use_id: 't1' })
+    expect(seen).toEqual([])
   })
 })

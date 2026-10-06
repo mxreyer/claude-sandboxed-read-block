@@ -9,6 +9,12 @@
       "description": "allow: run the command without any further check; ask: drop the read-block reason but still ask (in 2.1.289 that ask goes to the person, not the auto-mode classifier)",
       "options": ["allow", "ask"],
       "default": "allow"
+    },
+    "debug": {
+      "type": "boolean",
+      "title": "Show every Bash prompt's reason",
+      "description": "Shows a notice with the reason Claude Code gives for each Bash prompt the mod leaves alone because it isn't a read-block prompt",
+      "default": false
     }
   }
 }
