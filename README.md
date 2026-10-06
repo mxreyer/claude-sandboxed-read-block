@@ -39,6 +39,10 @@ notice with the command and bumps a count on that line (`read-block mod on ·
 read-block prompt but keeps it, a notice names the check that kept it (e.g.
 `Kept a read-block prompt: the sandbox is off`).
 
+`/read-block-log` lists the mod's last 20 Bash permission checks (newest
+first): the command, Claude Code's verdict and reason, and what the mod did.
+Run it right after an unexpected prompt.
+
 If a prompt appears without any notice, turn on the `debug` option (`/config`,
 "Show every Bash prompt's reason"): each Bash prompt the mod leaves alone then
 shows the reason Claude Code gave it. A compound command can be asked for a

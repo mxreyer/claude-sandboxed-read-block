@@ -155,3 +155,28 @@ describe('debug', () => {
     expect(seen).toEqual([])
   })
 })
+
+describe('/read-block-log', () => {
+  test('lists the last checks, newest first, with what the mod did', async ($, on) => {
+    on('ui.status', () => ({ value: undefined }))
+    on('ui.toast', () => ({ value: undefined }))
+    let core: ToolCheckResult = { decision: 'ask', reason: 'This command requires approval' }
+    on('tool.check', () => core)
+    on('settings.read', () => ({ value: { sandbox: SANDBOX_ON } }))
+
+    await $.tool.check({ tool: 'Bash', input: { command: 'cd a; cd b' }, tool_use_id: 't1' })
+    core = OUTSIDE
+    await $.tool.check({ tool: 'Bash', input: { command: 'cat ../x' }, tool_use_id: 't2' })
+    await $.tool.check({ tool: 'Bash', input: { command: 'not logged' } })
+
+    const r = await $.command.run({ command: 'read-block-log', args: '', origin: 'composer' })
+    expect(r.text).toBe([
+      '1. cat ../x',
+      `   Claude Code: ask: ${OUTSIDE.reason}`,
+      '   mod: skipped the prompt (allow)',
+      '2. cd a; cd b',
+      '   Claude Code: ask: This command requires approval',
+      '   mod: left alone (not a read-block ask)',
+    ].join('\n'))
+  })
+})
