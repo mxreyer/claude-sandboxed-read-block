@@ -1,25 +1,18 @@
-Four of the eight commands ran and four were denied. I ran each one exactly as written in its own call, and didn't retry anything.
+I ran all eight commands exactly as written, each in its own call. Four ran and four were denied, and every denial gave the same message. The results don't follow a consistent pattern, which may point to a gap in the mod:
 
 | Test | Outcome | Denial message (verbatim) |
 |---|---|---|
-| C1 | denied | `python3 names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
-| C2 | ran OK (printed `{'modules': ['./register.ts']}`) | — |
-| C3 | ran OK (printed 5 `## ` headings and the first 3 lines) | — |
-| C4 | denied | `cd names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
-| C5 | denied | `python3 names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
-| C6 | denied | `This Bash command contains multiple operations. The following parts require approval: python3 -I -c "print(open('README.md').read()[:10])", python3 -I -c "print(open('tests/test-prompt.txt').read()[:10])"` |
-| C7 | ran OK (printed `{ "modules": ["./register.ts"] }` twice) | — |
-| C8 | ran OK (`209 README.md`, then `{'modules': ['./register.ts']}`) | — |
+| C1 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| C2 | ran OK (`{'modules': ['./register.ts']}`) | — |
+| C3 | ran OK (5 `##` headings, then the first 3 lines of README) | — |
+| C4 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| C5 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| C6 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| C7 | ran OK (both `cat`s printed `{ "modules": ["./register.ts"] }`) | — |
+| C8 | ran OK (`218 README.md`, then `{'modules': ['./register.ts']}`) | — |
 
-**Return-to-root steps:**
-- **After C4:** it was denied, so the shell never left the root. I confirmed that with `pwd`, which printed `/home/max/claude-plugins/claude-sandboxed-read-block`.
-- **After C7:** the shell ended up in `sandboxed-read-block/hooks`, and I ran `cd /home/max/claude-plugins/claude-sandboxed-read-block` before C8.
+After C4 the shell was still in the repo root, because the command never ran. After C7 it was in `sandboxed-read-block/hooks`, so I `cd`'d back to the root before C8.
 
-**The results don't follow the command shapes consistently:**
-- C1 (one-line inline code) was denied, but C2 (multi-line inline code) ran, as did C8 (a read chained with multi-line inline code).
-- C4 (one `cd`) was denied, but C7 (two `cd`s) ran.
-- C6 is the only denial with a different message: the "multiple operations… require approval" error rather than the read-block error.
-
-You may want to look at that in the mod's results.
-
-**Unrelated to the tests:** the claude.ai Gmail, Google Calendar and Google Drive connectors need authorizing in your claude.ai connector settings. They can't be used until you do.
+**What doesn't add up:**
+- **Inline code:** every one-line `python3 -I -c` was denied (C1, C5, C6). The same kind of command spread over several lines was allowed (C2, and C8 inside a chain).
+- **`cd`:** one `cd` followed by a relative read was denied (C4). Two `cd`s with relative reads were allowed (C7), even though C7's first half is the same as C4.

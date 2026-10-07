@@ -1,1 +1,0 @@
-sandboxed-read-block: hooks module not loaded: hooks modules are not turned on for installed plugins in this process (early access: set CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 in its environment to load them); built-in plugins load regardless

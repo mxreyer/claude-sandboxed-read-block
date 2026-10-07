@@ -1,19 +1,21 @@
-Four of the eight tests ran and four were denied. The pattern is inconsistent: the one-line inline-code forms were denied while the multi-line ones ran, and a single `cd` was denied while two `cd`s ran.
+Four of the eight tests were denied and four ran OK.
 
 | Test | Outcome | Denial message (verbatim) |
 |---|---|---|
 | C1 | denied | `python3 names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
 | C2 | ran OK (printed `{'modules': ['./register.ts']}`) | — |
-| C3 | ran OK (listed 5 `## ` headings, then README lines 1–3) | — |
+| C3 | ran OK (printed the README headings and its first 3 lines) | — |
 | C4 | denied | `cd names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
 | C5 | denied | `python3 names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
 | C6 | denied | `This Bash command contains multiple operations. The following parts require approval: python3 -I -c "print(open('README.md').read()[:10])", python3 -I -c "print(open('tests/test-prompt.txt').read()[:10])"` |
-| C7 | ran OK (both `cat`s printed `{ "modules": ["./register.ts"] }`) | — |
-| C8 | ran OK (`209 README.md`, then `{'modules': ['./register.ts']}`) | — |
+| C7 | ran OK (printed hooks.json twice; left the shell in `sandboxed-read-block/hooks`) | — |
+| C8 | ran OK (`218 README.md`, then `{'modules': ['./register.ts']}`) | — |
 
-What stands out:
-- **Inline code (C1 vs C2, C5 vs C8):** one-line `python3 -c` was blocked as a "computed at run time" path, both alone and in a chain. The multi-line versions of the same idea ran, both alone and after `&&`.
-- **`cd` (C4 vs C7):** a single `cd … && cat` was blocked. The two-`cd` command ran in full.
-- **C6** got a different message from C1 and C5, even though each of its parts is the same kind of one-line inline code. Instead of the read-block message, it was flagged as a multi-operation command needing approval.
+**A mistake in the C8 run:** I sent C5 through C8 as one parallel batch, so C8 first ran right after C7 without the return to the repo root. Run from `sandboxed-read-block/hooks`, it failed with `wc: README.md: No such file or directory` (exit code 1). It wasn't denied. I then went back to the repo root and ran C8 again, and the table shows that second run.
 
-After C4 the shell was still in the repo root, so no step was needed. After C7 it was in `sandboxed-read-block/hooks`, so I ran `cd` back to the repo root before C8. Nothing was retried or rephrased.
+**Results that look inconsistent:**
+- **One-line vs multi-line inline code:** C1 (one line) was denied, but C2 (the same kind of `python3 -I -c` read, over several lines) ran. C5 and C8 follow the same split: one-line inline code denied, multi-line allowed.
+- **One `cd` vs two:** C4 (one `cd`, then a read) was denied, but C7 (two `cd`s, each followed by a read) ran.
+- **C6's denial is different:** it's the generic "multiple operations… require approval" message, not the read-block message the others got.
+
+These are probably worth checking in the mod's parsing.
