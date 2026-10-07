@@ -44,6 +44,10 @@ if [[ $PUSH -eq 1 ]]; then
   git pull --ff-only origin "$BRANCH"
 fi
 
+# Plugin hooks modules are early access; some installs only load them with
+# this set. The baseline loads no plugin, so it is unaffected.
+export CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1
+
 PROMPT="$(cat "$PROMPT_FILE")"
 NAME="$(basename "$PROMPT_FILE" .txt)"
 OUT="$REPO/results/$NAME"

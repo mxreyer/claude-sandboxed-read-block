@@ -26,6 +26,15 @@ For a single session: `claude --plugin-dir ./sandboxed-read-block`.
 While loaded, the mod pins `read-block mod on` under the prompt. Copy the
 folder again after any update and restart.
 
+**If the status line doesn't appear:** plugin hooks modules are early access,
+and some installs only load them when `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`
+is set in Claude Code's environment. `claude --debug` then logs
+`hooks module not loaded: hooks modules are not turned on for installed
+plugins`. Add `export CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` to your shell
+profile (e.g. `~/.bashrc`), or add it to the same `env` block as above, and
+restart. Requires Claude Code 2.1.285 or later; 2.1.274 didn't load the mod
+at all.
+
 ## How it works
 
 `hooks/register.ts` hooks `tool.check` for Bash. It changes Claude Code's
