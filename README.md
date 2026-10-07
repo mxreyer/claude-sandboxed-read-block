@@ -148,3 +148,17 @@ gap before relying on the mod:
 | T9 `ls /run/user` | fail | add `/run/user` to `sandbox.filesystem.denyRead` |
 | T10 `secret-tool search --all service x` | fail | the keyring is reachable over D-Bus: deny `/run/user` and check that Unix sockets are blocked |
 | T11 `ls /proc` | list only a few PIDs | other processes' environment variables are readable |
+
+`test-prompt-compound.txt` on macOS with 2.1.292 (headless, so a prompt shows
+as a denial):
+
+| Test | Command shape | Without the mod | With the mod (`allow`) |
+|---|---|---|---|
+| C1 | one-line `python3 -c` | prompt (read block) | runs |
+| C2 | multi-line `python3 -c` | runs | runs |
+| C3 | chained plain reads | runs | runs |
+| C4 | `cd dir && cat file` | prompt (read block) | runs |
+| C5 | plain read `;` one-line `python3 -c` | prompt (read block) | runs |
+| C6 | two one-line `python3 -c` chained | prompt (compound summary) | runs (checked part by part) |
+| C7 | two `cd`s with relative reads | runs | runs |
+| C8 | plain read `&&` multi-line `python3 -c` | runs | runs |
