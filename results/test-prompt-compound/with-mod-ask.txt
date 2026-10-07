@@ -1,0 +1,21 @@
+Five of the eight ran and three were denied, all with the same mod message. C6 was blocked by Claude Code's own approval prompt instead.
+
+| Test | Outcome | Denial message (verbatim) |
+|---|---|---|
+| C1 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| C2 | ran OK (`{'modules': ['./register.ts']}`) | — |
+| C3 | ran OK (5 `## ` headings + first 3 lines) | — |
+| C4 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| C5 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| C6 | denied | `This Bash command contains multiple operations. The following parts require approval: python3 -I -c "print(open('README.md').read()[:10])", python3 -I -c "print(open('test-prompt.txt').read()[:10])"` |
+| C7 | ran OK (hooks.json printed twice) | — |
+| C8 | ran OK (`138 README.md`, then `{'modules': ['./register.ts']}`) | — |
+
+**What stands out:**
+- **Inline code:** the one-line version was denied (C1, C5) but the multi-line version ran (C2, C8), even though each pair reads files the same way.
+- **`cd`:** a single `cd` followed by a relative read was denied (C4), but the two-`cd` chain ran (C7).
+- **C6** is the only denial that came from Claude Code's own compound-command check, not from the mod. In this run, the mod let that prompt through rather than denying the command itself.
+
+**Process notes:**
+- I accidentally sent C3 and C4 in the same batch rather than strictly one after the other. Each was still its own Bash call. C4 was denied, so the directory didn't change, which I confirmed with `pwd` before C5.
+- C7 left the shell in `sandboxed-read-block/hooks`, so I `cd`'d back to the repository root before C8.

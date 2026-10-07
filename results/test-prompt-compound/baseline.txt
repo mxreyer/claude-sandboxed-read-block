@@ -1,0 +1,15 @@
+Seven of the eight commands ran OK and one, C6, was denied.
+
+| Test | Outcome | Denial message |
+|---|---|---|
+| C1 | ran OK | — |
+| C2 | ran OK | — |
+| C3 | ran OK | — |
+| C4 | ran OK | — |
+| C5 | ran OK | — |
+| C6 | **denied** | `This Bash command contains multiple operations. The following parts require approval: python3 -I -c "print(open('README.md').read()[:10])", python3 -I -c "print(open('test-prompt.txt').read()[:10])"` |
+| C7 | ran OK | — |
+| C8 | ran OK | — |
+
+- **C6:** The denial was the general "requires approval" message for a chain of several commands, not a read-block message. It listed both inline-Python parts as needing approval. C1 and C5 used the same kind of one-line inline code and were not denied. As you asked, I didn't retry it.
+- **Directory resets:** After C4 and C7 the shell was left in a subdirectory, so I ran a separate `cd /Users/max/claude-plugins/claude-sandboxed-read-block` each time to get back to the repo root. Neither of those calls was denied.

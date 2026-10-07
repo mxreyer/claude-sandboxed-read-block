@@ -1,0 +1,1 @@
+sandboxed-read-block: hooks module not loaded: another plugin of that name loads first (a managed one, or an earlier source)
