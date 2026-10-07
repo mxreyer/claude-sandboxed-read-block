@@ -180,3 +180,82 @@ describe('/read-block-log', () => {
     ].join('\n'))
   })
 })
+
+describe('compound commands', () => {
+  const PY = `python3 -I -c "print(open('README.md').read()[:10])"`
+  const PY2 = `python3 -I -c "print(open('x; y').read()[:10])"`
+  const summary = (parts: string): ToolCheckResult => ({
+    decision: 'ask',
+    reason: `This Bash command contains multiple operations. The following parts require approval: ${parts}`,
+  })
+  const READ: ToolCheckResult = {
+    decision: 'ask',
+    reason: 'python3 names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)',
+  }
+  const GENERIC: ToolCheckResult = { decision: 'ask', reason: 'This command requires approval' }
+
+  // Core's verdict per command; anything unlisted is allowed.
+  const coreBy = (on: On, verdicts: Record<string, ToolCheckResult>) => {
+    const asked: string[] = []
+    on('tool.check', (_$, e) => {
+      const command = (e.input as { command: string }).command
+      asked.push(command)
+      return verdicts[command] ?? { decision: 'allow' }
+    })
+    on('settings.read', () => ({ value: { sandbox: SANDBOX_ON } }))
+    on('ui.status', () => ({ value: undefined }))
+    on('ui.toast', () => ({ value: undefined }))
+    return asked
+  }
+
+  test('skips the prompt when every part needing approval is a read-block ask', async ($, on) => {
+    const command = `${PY}; ${PY2}`
+    const asked = coreBy(on, { [command]: summary(`${PY}, ${PY2}`), [PY]: READ, [PY2]: READ })
+    const r = await $.tool.check({ tool: 'Bash', input: { command }, tool_use_id: 't1' })
+    expect(r.decision).toBe('allow')
+    expect(asked).toEqual([command, PY, PY2])
+  })
+
+  test('splits at && || | & and line breaks, not inside quotes or at 2>&1', async ($, on) => {
+    const command = `${PY2} && wc -l a 2>&1 | head -1 || echo "x | y"\n${PY}`
+    const asked = coreBy(on, { [command]: summary(PY), [PY]: READ })
+    const r = await $.tool.check({ tool: 'Bash', input: { command }, tool_use_id: 't1' })
+    expect(r.decision).toBe('allow')
+    expect(asked).toEqual([command, PY2, 'wc -l a 2>&1', 'head -1', 'echo "x | y"', PY])
+  })
+
+  test('keeps the prompt when a part needs approval for another reason', async ($, on) => {
+    const command = `${PY}; rm -rf build`
+    coreBy(on, { [command]: summary(`${PY}, rm -rf build`), [PY]: READ, 'rm -rf build': GENERIC })
+    expect(await $.tool.check({ tool: 'Bash', input: { command }, tool_use_id: 't1' })).toEqual(summary(`${PY}, rm -rf build`))
+  })
+
+  test('keeps the prompt when a part is denied', async ($, on) => {
+    const command = `${PY}; cat ~/.ssh/id`
+    const deny: ToolCheckResult = { decision: 'deny', reason: 'Read(~/.ssh/**)' }
+    coreBy(on, { [command]: summary(command), [PY]: READ, 'cat ~/.ssh/id': deny })
+    expect((await $.tool.check({ tool: 'Bash', input: { command }, tool_use_id: 't1' })).decision).toBe('ask')
+  })
+
+  test('keeps the prompt when no part is held up by the read block', async ($, on) => {
+    const command = 'cd a && cat b; cd c && cat d'
+    coreBy(on, { [command]: summary('cd c') })
+    expect((await $.tool.check({ tool: 'Bash', input: { command }, tool_use_id: 't1' })).decision).toBe('ask')
+  })
+
+  test("keeps the prompt when it can't split the command", async ($, on) => {
+    const commands = [`${PY}; echo $(cat x)`, `${PY}; (cat x)`, `${PY}; cat <<EOF`, `${PY}; echo "unclosed`]
+    const asked = coreBy(on, { ...Object.fromEntries(commands.map(c => [c, summary(PY)])), [PY]: READ })
+    for (const command of commands) {
+      expect((await $.tool.check({ tool: 'Bash', input: { command }, tool_use_id: 't1' })).decision).toBe('ask')
+    }
+    expect(asked).toEqual(commands)
+  })
+
+  test('leaves a compound query alone', async ($, on) => {
+    const command = `${PY}; ${PY2}`
+    const asked = coreBy(on, { [command]: summary(`${PY}, ${PY2}`), [PY]: READ, [PY2]: READ })
+    expect((await $.tool.check({ tool: 'Bash', input: { command } })).decision).toBe('ask')
+    expect(asked).toEqual([command])
+  })
+})

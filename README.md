@@ -15,7 +15,9 @@ Claude's own file tools (Read, Edit, …) stay blocked as before.
 verdict only when all of these hold:
 
 - the verdict is `ask` and its reason names
-  `permissions.blockReadsOutsideWorkingDirectories`;
+  `permissions.blockReadsOutsideWorkingDirectories`, or, for a compound
+  command, every part needing approval is held up only by the read block
+  (see below);
 - no ask rule or settings hook made that decision;
 - `sandbox.enabled` is on;
 - the command can't run unsandboxed (no `dangerouslyDisableSandbox`, or
@@ -24,6 +26,16 @@ verdict only when all of these hold:
 
 In every other case, including a hook error, the engine's own verdict
 stands.
+
+**Compound commands.** When two or more parts of a chained command need
+approval, Claude Code only says *"This Bash command contains multiple
+operations. The following parts require approval: …"*, not why. The mod then
+splits the command at `;`, `&&`, `||`, `|`, `&` and line breaks (respecting
+quotes) and asks Claude Code about each part on its own. It skips the prompt
+only if every part is either allowed or held up only by the read block, and
+at least one is held up by it. Any other reason keeps the prompt, and so does
+anything it can't split with certainty: `$(…)`, backticks, `( )`, `{ }`,
+heredocs, unbalanced quotes.
 
 The `verdict` option sets what the mod answers:
 
