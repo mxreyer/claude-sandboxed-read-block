@@ -179,11 +179,12 @@ gap before relying on the mod:
 
 ### Linux checks
 
-`tests/test-prompt-linux.txt`, Fedora 44, Claude Code 2.1.286, with these
+`tests/test-prompt-linux.txt` on two machines: Fedora 44 (Claude Code
+2.1.286) and Ubuntu with kernel 6.8 (2.1.285), with these
 `sandbox.filesystem.denyRead` entries: `/media`, `/mnt`, `/run/user`,
 `/tmp/ssh-*`, `/tmp/.X11-unix`, `**/.env`, `**/.env.*` (plus macOS-only ones
 such as `/Network`), and `Read(**/.env)` in `permissions.deny`. Results with
-the mod (`allow`):
+the mod (`allow`), the same on both machines:
 
 | Test | Result | Meaning |
 |---|---|---|
@@ -192,26 +193,41 @@ the mod (`allow`):
 | L3 `cat /etc/hostname` | printed | expected: the sandbox only hides home |
 | L4 `ls /run/user` | empty | hidden |
 | L5 `ls /media /mnt` | empty | hidden (or empty) |
-| L6 `ssh-add -l` | `Could not open a connection to your authentication agent.` | agent unreachable* |
+| L6 `ssh-add -l` | `Could not open a connection to your authentication agent.` | no agent ran on either machine; an agent socket would be blocked like Docker's |
 | L7 `ls /tmp/.X11-unix` | empty | hidden (or no X server) |
 | L8 `dbus-send … ListNames` | `Failed to open socket: Operation not permitted` | creating Unix sockets is blocked, abstract sockets included |
-| L9 `secret-tool search …` | `Unable to create socket: Operation not permitted` | keyring unreachable |
+| L9 `secret-tool search …` | socket blocked, or refused by the classifier | keyring unreachable |
 | L10 `ls /proc` | 3 PIDs (1, 2, 4) | own process namespace |
 | L11 `cat /proc/1/cmdline` | the sandbox's own shell | host processes invisible |
-| L12 `docker ps` | `permission denied … /var/run/docker.sock` | daemon unreachable* |
+| L12 `docker ps` | `permission denied … /var/run/docker.sock` | daemon unreachable: on Ubuntu, `docker ps` works in a normal terminal, so the sandbox is what blocks it |
 | L13 write `tests/.env` | `Permission denied` | `**/.env` matches; side effect: sandboxed commands can't create `.env` files |
 | L14 `cat tests/.env` | denied by a permission rule | derived from `Read(**/.env)` |
 | L15 Read tool on `tests/.env` | denied | `Read(**/.env)` matches |
 | L16 `rm tests/.env` | `Device or resource busy` | the sandbox mounts a placeholder over the denied path |
 
-\* L6 and L12 failed the same way without the mod, so they only prove
-something if the agent and Docker work outside Claude Code: run `ssh-add -l`
-and `docker ps` in a normal terminal. If those succeed, the sandbox is what
-blocks them; if they fail too, there was nothing to reach.
-
 The non-existent macOS entries and the `**` globs caused no errors or
-noticeable slowdown. The compound prompt gave the same results on Linux as
-on macOS (table above).
+noticeable slowdown. The compound prompt gave the same results on both Linux
+machines as on macOS (table above).
+
+**Ubuntu 24.04 setup.** Out of the box, every sandboxed command failed with
+`bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`: Ubuntu's
+AppArmor restricts unprivileged user namespaces. It fails closed (nothing ran
+unsandboxed), but nothing works either. An AppArmor profile that allows only
+`bwrap` fixes it; save as `/etc/apparmor.d/bwrap` and load with
+`sudo apparmor_parser -r /etc/apparmor.d/bwrap`:
+
+```
+abi <abi/4.0>,
+include <tunables/global>
+
+profile bwrap /usr/bin/bwrap flags=(unconfined) {
+  userns,
+  include if exists <local/bwrap>
+}
+```
+
+That machine also needed `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` (see
+Install) and Claude Code 2.1.285; 2.1.274 didn't load the mod.
 
 ---
 
