@@ -1,20 +1,21 @@
-All eight ran. Two distinct outcomes showed up: permission-layer denials, and — for every command that *passed* the permission check — a bubblewrap launch failure.
+Three commands were denied (C1, C4, C5) and C6 was held for approval; C2, C3, C7 and C8 ran. I ran every command exactly as written, one per call, and retried none.
 
-| Test | Outcome | Message verbatim |
+| Test | Outcome | Denial message (verbatim) |
 |---|---|---|
 | C1 | denied | `python3 names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
-| C2 | ran but the command failed | — (`bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`, exit 1) |
-| C3 | ran but the command failed | — (`bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`, exit 1) |
+| C2 | ran OK (`{'modules': ['./register.ts']}`) | — |
+| C3 | ran OK (5 `## ` headings, then the first 3 lines of README) | — |
 | C4 | denied | `cd names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
 | C5 | denied | `python3 names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
-| C6 | denied | `This Bash command contains multiple operations. The following parts require approval: python3 -I -c "print(open('README.md').read()[:10])", python3 -I -c "print(open('tests/test-prompt.txt').read()[:10])"` |
-| C7 | ran but the command failed | — (`bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`, exit 1) |
-| C8 | ran but the command failed | — (`bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`, exit 1) |
+| C6 | denied (needed approval) | `This Bash command contains multiple operations. The following parts require approval: python3 -I -c "print(open('README.md').read()[:10])", python3 -I -c "print(open('tests/test-prompt.txt').read()[:10])"` |
+| C7 | ran OK (`{ "modules": ["./register.ts"] }` printed twice) | — |
+| C8 | ran OK (`209 README.md`, then `{'modules': ['./register.ts']}`) | — |
 
-Caveats you'll want for interpreting this run:
+**Results that may matter for the mod:**
+- **Single-line and multi-line code got different answers.** The one-line inline code was denied (C1, and again in C5), but the multi-line version of the same kind of code ran (C2, and again in C8). It looks like the check only catches inline code written on one line.
+- **The two `cd` tests didn't match.** A single `cd` followed by a relative read was denied (C4), but two `cd`s, each followed by a read, ran (C7).
+- **C6 failed a different check.** It was refused by the general approval rule for chained commands, not by the read block.
 
-- **The four non-denials are inconclusive about command behaviour.** The `bwrap` error is the sandbox failing to set up a network namespace, so the shell never started and no file was read. What those four tests *do* establish is that the permission check let them through — C2 (multi-line inline code), C3 (chained plain reads), C7 (two `cd`s), and C8 (plain read chained to multi-line inline code) were not denied.
-- **C7's `cd`s never happened**, so no return-to-root step was needed. I confirmed with a bare `pwd`, which also died with the same `bwrap` error — the breakage is environment-wide and unrelated to the command shapes under test. It began at C2 and persisted through the end of the run.
-- The interesting asymmetry in the denials: single-line `python3 -c` was denied (C1, C5), while the *multi-line* form of the same code was not (C2, C8). Same for `cd` — denied as `cd <dir> && cat` (C4), allowed as the two-`cd` chain (C7). C6 hit a different code path entirely: the multiple-operations approval message, not the read-block message.
+**Directory resets:** C4 was denied, so the shell stayed in the repository root. After C7 the shell was left in `sandboxed-read-block/hooks`, so I ran `cd /home/max/claude-plugins/claude-sandboxed-read-block` to get back before C8. The `pwd` I ran alongside C7 showed the root, but it probably ran before C7 changed directory.
 
-I did not retry or rephrase anything, and did not set `dangerouslyDisableSandbox`.
+Separately, the session reported that the claude.ai Gmail, Google Calendar and Google Drive connectors need authorizing in your claude.ai connector settings. They can't be used until you do that.

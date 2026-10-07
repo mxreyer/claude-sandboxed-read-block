@@ -1,31 +1,19 @@
-## Results
+Four of the eight tests ran and four were denied. The pattern is inconsistent: the one-line inline-code forms were denied while the multi-line ones ran, and a single `cd` was denied while two `cd`s ran.
 
-| Test | Outcome | Exact message |
+| Test | Outcome | Denial message (verbatim) |
 |---|---|---|
 | C1 | denied | `python3 names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
-| C2 | ran but the command failed | — (`Exit code 1` / `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`) |
-| C3 | ran but the command failed | — (`Exit code 1` / `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`) |
+| C2 | ran OK (printed `{'modules': ['./register.ts']}`) | — |
+| C3 | ran OK (listed 5 `## ` headings, then README lines 1–3) | — |
 | C4 | denied | `cd names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
 | C5 | denied | `python3 names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
 | C6 | denied | `This Bash command contains multiple operations. The following parts require approval: python3 -I -c "print(open('README.md').read()[:10])", python3 -I -c "print(open('tests/test-prompt.txt').read()[:10])"` |
-| C7 | ran but the command failed | — (`Exit code 1` / `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`) |
-| C8 | ran but the command failed | — (`Exit code 1` / `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`) |
+| C7 | ran OK (both `cat`s printed `{ "modules": ["./register.ts"] }`) | — |
+| C8 | ran OK (`209 README.md`, then `{'modules': ['./register.ts']}`) | — |
 
-## Caveats you need for reading this
+What stands out:
+- **Inline code (C1 vs C2, C5 vs C8):** one-line `python3 -c` was blocked as a "computed at run time" path, both alone and in a chain. The multi-line versions of the same idea ran, both alone and after `&&`.
+- **`cd` (C4 vs C7):** a single `cd … && cat` was blocked. The two-`cd` command ran in full.
+- **C6** got a different message from C1 and C5, even though each of its parts is the same kind of one-line inline code. Instead of the read-block message, it was flagged as a multi-operation command needing approval.
 
-**The sandbox could not launch any command.** Every test that got past the permission layer died identically on `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`. A bare `pwd` fails the same way, so this is the bubblewrap setup in this environment, not anything about the test commands. For C2, C3, C7 and C8, "ran OK" vs. "the read block would have stopped it at runtime" is therefore **untested** — all I established is that they were *not* denied pre-execution.
-
-**Deviations from your protocol, both disclosed:**
-- I first issued C1–C3 as three parallel Bash calls. C2 and C3 failed on `bwrap`, which I initially read as a concurrency artifact, so I re-ran each once serially. Same failure. No denial was ever retried.
-- I ran one extra `pwd` as a diagnostic to isolate the `bwrap` failure.
-
-**The post-C4/C7 "return to root" step was never needed** — neither command executed, so no `cd` took effect. I can't positively confirm the cwd, since `pwd` itself can't run.
-
-## The one substantive finding
-
-C4 and C7 split, and that's the interesting result:
-
-- **C4** (`cd <dir> && cat <relative>`) → denied on the `cd`.
-- **C7** (`cd <dir> && cat …; cd <dir> && cat …`) → **not denied**, passed through to execution.
-
-Same `cd sandboxed-read-block && cat hooks/hooks.json` prefix in both. Adding a second `; cd … && cat …` segment made the checker stop objecting to the first one. Worth a look at how the multi-operation split path feeds segments to the `cd` check — C6 shows multi-segment commands take a different route (generic "requires approval" rather than the read-block message), and C7 suggests the per-segment `cd` analysis isn't applied on that route.
+After C4 the shell was still in the repo root, so no step was needed. After C7 it was in `sandboxed-read-block/hooks`, so I ran `cd` back to the repo root before C8. Nothing was retried or rephrased.
