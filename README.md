@@ -193,7 +193,7 @@ the mod (`allow`), the same on both machines:
 | L3 `cat /etc/hostname` | printed | expected: the sandbox only hides home |
 | L4 `ls /run/user` | empty | hidden |
 | L5 `ls /media /mnt` | empty | hidden (or empty) |
-| L6 `ssh-add -l` | `Could not open a connection to your authentication agent.` | no agent ran on either machine; an agent socket would be blocked like Docker's |
+| L6 `ssh-add -l` | `Could not open a connection to your authentication agent.` | no agent ran during the test; checked separately, see below |
 | L7 `ls /tmp/.X11-unix` | empty | hidden (or no X server) |
 | L8 `dbus-send … ListNames` | `Failed to open socket: Operation not permitted` | creating Unix sockets is blocked, abstract sockets included |
 | L9 `secret-tool search …` | socket blocked, or refused by the classifier | keyring unreachable |
@@ -204,6 +204,16 @@ the mod (`allow`), the same on both machines:
 | L14 `cat tests/.env` | denied by a permission rule | derived from `Read(**/.env)` |
 | L15 Read tool on `tests/.env` | denied | `Read(**/.env)` matches |
 | L16 `rm tests/.env` | `Device or resource busy` | the sandbox mounts a placeholder over the denied path |
+
+**SSH agent, checked by hand.** With an agent started in a terminal
+(`eval "$(ssh-agent -s)"`; `ssh-add -l` there answers "The agent has no
+identities.") and Claude Code started from that terminal, `ssh-add -l` in the
+sandbox fails with `Error connecting to agent: Operation not permitted`, with
+and without `SSH_AUTH_SOCK` set explicitly. Like D-Bus, the sandbox refuses
+to create the Unix socket at all, so the agent is unreachable wherever its
+socket lives. Not yet checked on macOS, where an agent always runs: run
+`ssh-add -l` once in a Claude session there; if it lists keys or says "no
+identities", add `/private/tmp/com.apple.launchd.*` to `denyRead`.
 
 The non-existent macOS entries and the `**` globs caused no errors or
 noticeable slowdown. The compound prompt gave the same results on both Linux
