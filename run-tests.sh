@@ -24,6 +24,14 @@ if [[ ! -f "$PROMPT_FILE" ]]; then
   exit 1
 fi
 
+# An installed copy of the mod loads in every run and shadows the copies
+# under test, so the baseline would not be a baseline.
+if [[ -n "${CLAUDE_CODE_PLUGIN_DIRS:-}" ]] || grep -q CLAUDE_CODE_PLUGIN_DIRS "$HOME/.claude/settings.json" 2>/dev/null; then
+  echo "CLAUDE_CODE_PLUGIN_DIRS is set (environment or ~/.claude/settings.json)." >&2
+  echo "Remove it while testing so no installed copy of the mod loads, then restore it." >&2
+  exit 1
+fi
+
 if [[ -n "$(git status --porcelain -- sandboxed-read-block "$PROMPT_FILE")" ]]; then
   echo "sandboxed-read-block/ or $PROMPT_FILE has local changes; commit or revert them first." >&2
   exit 1
