@@ -1,14 +1,12 @@
-Seven of the eight tests ran OK. Only C6, the chain of two one-line inline-code calls, was denied. C4 and C7 left the shell outside the repo root, and I `cd`'d back before the next test each time.
+All eight commands ran exactly as written and worked. None was denied and none failed. After C4 and C7 the shell was left in a subdirectory, so I ran a separate `cd /Users/max/claude-plugins/claude-sandboxed-read-block` to get back to the repo root (not a test).
 
 | Test | Outcome | Denial message |
 |---|---|---|
-| C1 | ran OK | — |
-| C2 | ran OK | — |
-| C3 | ran OK | — |
-| C4 | ran OK | — |
-| C5 | ran OK | — |
-| C6 | denied | `This Bash command contains multiple operations. The following parts require approval: python3 -I -c "print(open('README.md').read()[:10])", python3 -I -c "print(open('test-prompt.txt').read()[:10])"` |
-| C7 | ran OK | — |
-| C8 | ran OK | — |
-
-C5 and C8 were let through even though they also chain a plain read with inline code (C8's is multi-line). That suggests the denial comes from having two inline-code parts in one command, not from inline code in a chain as such. The C6 message is a prompt for approval, not a sandbox block, so with no one at the keyboard it counted as a denial. I didn't retry it.
+| C1 | Ran OK (printed the first 40 characters of README.md) | — |
+| C2 | Ran OK (printed `{'modules': ['./register.ts']}`) | — |
+| C3 | Ran OK (5 headings, then the first 3 lines) | — |
+| C4 | Ran OK (printed hooks.json; shell left in `sandboxed-read-block/`) | — |
+| C5 | Ran OK (`22`, then the first 40 characters of README.md) | — |
+| C6 | Ran OK (`# sandboxe` / `This is a`) | — |
+| C7 | Ran OK (hooks.json printed twice; shell left in `sandboxed-read-block/hooks/`) | — |
+| C8 | Ran OK (`150 README.md`, then the hooks.json dict) | — |

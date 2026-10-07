@@ -1,15 +1,17 @@
-Seven of the eight commands ran OK and one, C6, was denied.
+Of the eight tests, four ran OK and four were denied. All were run exactly as written, one per call, with no retries. C4 was denied, so the shell never left the root (I confirmed with `pwd`). C7 did move it into `sandboxed-read-block/hooks`, so I ran `cd` back to the repository root before C8.
 
-| Test | Outcome | Denial message |
+| Test | Outcome | Denial message (verbatim) |
 |---|---|---|
-| C1 | ran OK | — |
-| C2 | ran OK | — |
-| C3 | ran OK | — |
-| C4 | ran OK | — |
-| C5 | ran OK | — |
-| C6 | **denied** | `This Bash command contains multiple operations. The following parts require approval: python3 -I -c "print(open('README.md').read()[:10])", python3 -I -c "print(open('test-prompt.txt').read()[:10])"` |
-| C7 | ran OK | — |
-| C8 | ran OK | — |
+| C1 | denied | `python3 names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
+| C2 | ran OK (printed `{'modules': ['./register.ts']}`) | — |
+| C3 | ran OK (5 `## ` headings, then README lines 1–3) | — |
+| C4 | denied | `cd names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
+| C5 | denied | `python3 names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
+| C6 | denied | `This Bash command contains multiple operations. The following parts require approval: python3 -I -c "print(open('README.md').read()[:10])", python3 -I -c "print(open('test-prompt.txt').read()[:10])"` |
+| C7 | ran OK (printed `{ "modules": ["./register.ts"] }` twice) | — |
+| C8 | ran OK (`150 README.md`, then `{'modules': ['./register.ts']}`) | — |
 
-- **C6:** The denial was the general "requires approval" message for a chain of several commands, not a read-block message. It listed both inline-Python parts as needing approval. C1 and C5 used the same kind of one-line inline code and were not denied. As you asked, I didn't retry it.
-- **Directory resets:** After C4 and C7 the shell was left in a subdirectory, so I ran a separate `cd /Users/max/claude-plugins/claude-sandboxed-read-block` each time to get back to the repo root. Neither of those calls was denied.
+Some results don't line up and may be worth looking into in the mod:
+- **Python:** the one-line inline Python in C1, C5 and C6 was denied every time, but the multi-line version ran, both alone (C2) and chained after a plain read (C8).
+- **`cd`:** the single `cd` plus a relative read in C4 was denied, but C7, which has two `cd`s plus relative reads, ran.
+- **C6's message:** it came from Claude Code's generic "multiple operations… require approval" check, not the read-block message that C1, C4 and C5 got.
