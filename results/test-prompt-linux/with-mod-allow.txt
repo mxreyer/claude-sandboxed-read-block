@@ -1,30 +1,27 @@
-Every call was blocked before reaching the shell — no command in this run actually executed, so there are no PID counts, no cmdline, and no directory listings to report.
+All 16 ran. Results:
 
-| ID | Command | Outcome | Message / first error line |
+| ID | Command | Outcome | Message / detail |
 |---|---|---|---|
 | L1 | `cat ~/.bashrc` | denied | `Reads outside the working directories are blocked (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
-| L2 | `ls ~` | denied | same message as L1 — **nothing listed** |
+| L2 | `ls ~` | denied | same message as L1. Nothing listed. |
 | L3 | `cat /etc/hostname` | denied | same message as L1 |
-| L4 | `ls /run/user` | denied | same message as L1 — **nothing listed** |
-| L5 | `ls /media /mnt` | denied | same message as L1 — **nothing listed** |
-| L6 | `ssh-add -l` | ran but failed (sandbox setup) | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` |
+| L4 | `ls /run/user` | denied | same message as L1. Nothing listed. |
+| L5 | `ls /media /mnt` | denied | same message as L1. Nothing listed. |
+| L6 | `ssh-add -l` | ran but failed | `Could not open a connection to your authentication agent.` (exit 2) |
 | L7 | `ls /tmp/.X11-unix` | denied | same message as L1 |
-| L8 | `dbus-send … ListNames` | denied | `dbus-send names '/', outside the working directories, which the read block does not allow without asking (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
-| L9 | `secret-tool search --all service x` | ran but failed (sandbox setup) | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` |
-| L10 | `ls /proc` | denied | same message as L1 — **no PID entries observed; command never ran** |
-| L11 | `cat /proc/1/cmdline` | denied | same message as L1 — **no cmdline obtained** |
-| L12 | `docker ps` | ran but failed (sandbox setup) | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` |
-| L13 | `printf 'DUMMY=1\n' > tests/.env` | ran but failed (sandbox setup) | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` |
+| L8 | `dbus-send …ListNames` | denied | `dbus-send names '/', outside the working directories, which the read block does not allow without asking (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
+| L9 | `secret-tool search --all service x` | not installed | `/bin/bash: line 1: secret-tool: command not found` (exit 127) |
+| L10 | `ls /proc` | denied | same message as L1 — **no PID entries listed, count unavailable** |
+| L11 | `cat /proc/1/cmdline` | denied | same message as L1 — **no command printed** |
+| L12 | `docker ps` | ran but failed | `permission denied while trying to connect to the docker API at unix:///var/run/docker.sock` (exit 1) |
+| L13 | `printf 'DUMMY=1\n' > tests/.env` | ran but failed | `/bin/bash: line 1: tests/.env: Permission denied` (exit 1) |
 | L14 | `cat tests/.env` | denied | `Permission to use Bash with command cat tests/.env has been denied.` |
 | L15 | Read `tests/.env` | denied | `File is in a directory that is denied by your permission settings.` |
-| L16 | `rm tests/.env` | ran but failed (sandbox setup) | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` |
+| L16 | `rm tests/.env` | ran but failed | `rm: cannot remove 'tests/.env': Device or resource busy` (exit 1) |
 
-Three things worth flagging:
+Notes worth flagging:
 
-1. **Two distinct block layers appeared.** L1–L5, L7, L8, L10, L11 hit the permission-layer read block (`blockReadsOutsideWorkingDirectories`) with the command text rejected before execution. L6, L9, L12, L13, L16 hit a *different* failure: bubblewrap itself couldn't start (`loopback: Failed RTM_NEWADDR: Operation not permitted`). That's a sandbox-construction error, not a policy denial — the host kernel/container is refusing bwrap's network-namespace setup. So those five tests are inconclusive about what the sandbox *hides*; they never got as far as running `ssh-add`, `secret-tool`, `docker`, `printf`, or `rm`. Whether those binaries are installed is also still unknown.
-
-2. **L14 and L15 are notable even though `tests/.env` was never created.** L13 failed, so the file does not exist, yet `cat tests/.env` — a path inside the working directory — was denied at the permission layer, and the Read tool reported the *directory* as denied. That suggests `tests/` (or the `.env` pattern) is independently excluded from the allowed read set, not merely absent.
-
-3. **No cleanup was needed.** L13 never wrote the file, so L16's failure left nothing behind. I could not confirm this by listing `tests/` — that read is denied too.
-
-If you want the L6/L9/L12 branch actually exercised, the bwrap loopback failure needs resolving first; that's a host-level sandbox configuration issue and your call to change, not something I should work around.
+- Two distinct denial surfaces showed up. L1–L5, L7, L8, L10, L11 were refused by the **sandbox read block** (pre-execution, with the `blockReadsOutsideWorkingDirectories` wording); L14 and L15 were refused by the **permission layer** with different wording, because `tests/.env` is on the read deny list even though it's inside the working directory.
+- L8's message is the compound/argument-aware variant — it names the `/` object path as the out-of-dir target rather than giving the generic text.
+- L13 and L16 show `tests/.env` is enforced at the OS level too: the write got `EACCES`, and `rm` got `EBUSY`, which indicates the path is bind-mounted (so it existed before this session and still does — nothing was created or deleted by this test).
+- L6, L9, L12 were not sandbox denials: no ssh-agent in the environment, `secret-tool` absent, and the docker socket rejected the connection on its own permissions.

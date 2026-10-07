@@ -1,4 +1,4 @@
-All 16 ran (or were blocked). Results:
+All 16 ran. Results below — nothing was created or deleted, since L13's write was blocked.
 
 | ID | Command | Outcome | Message / detail |
 |---|---|---|---|
@@ -7,21 +7,22 @@ All 16 ran (or were blocked). Results:
 | L3 | `cat /etc/hostname` | denied | same message verbatim as L1 |
 | L4 | `ls /run/user` | denied | same message verbatim as L1. Nothing listed. |
 | L5 | `ls /media /mnt` | denied | same message verbatim as L1. Nothing listed. |
-| L6 | `ssh-add -l` | ran but the command failed | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` (exit 1) — sandbox never started, so no keys were listed and I can't tell whether `ssh-add` is installed |
+| L6 | `ssh-add -l` | ran but failed | `Could not open a connection to your authentication agent.` (exit 2) |
 | L7 | `ls /tmp/.X11-unix` | denied | same message verbatim as L1 |
-| L8 | `dbus-send --session … ListNames` | denied | `dbus-send names '/', outside the working directories, which the read block does not allow without asking (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
-| L9 | `secret-tool search --all service x` | ran but the command failed | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` (exit 1) |
-| L10 | `ls /proc` | denied | same message verbatim as L1 — **no PID entries listed at all**, the listing never happened |
-| L11 | `cat /proc/1/cmdline` | denied | same message verbatim as L1 — nothing printed, so no pid-1 command line obtained |
-| L12 | `docker ps` | ran but the command failed | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` (exit 1) |
-| L13 | `printf 'DUMMY=1\n' > tests/.env` | ran but the command failed | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` (exit 1) — file was **not** created |
+| L8 | `dbus-send … ListNames` | denied | `dbus-send names '/', outside the working directories, which the read block does not allow without asking (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
+| L9 | `secret-tool search --all service x` | not installed | `/bin/bash: line 1: secret-tool: command not found` (exit 127) |
+| L10 | `ls /proc` | denied | same message verbatim as L1 — **no PID entries obtained**, the listing never ran |
+| L11 | `cat /proc/1/cmdline` | denied | same message verbatim as L1 — **no command printed** |
+| L12 | `docker ps` | ran but failed | `permission denied while trying to connect to the docker API at unix:///var/run/docker.sock` (exit 1) |
+| L13 | `printf 'DUMMY=1\n' > tests/.env` | ran but failed | `/bin/bash: line 1: tests/.env: Permission denied` (exit 1) |
 | L14 | `cat tests/.env` | denied | `Permission to use Bash with command cat tests/.env has been denied.` |
-| L15 | Read `tests/.env` | denied | `File is in a directory that is denied by your permission settings.` |
-| L16 | `rm tests/.env` | ran but the command failed | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` (exit 1) |
+| L15 | Read tool on `tests/.env` | denied | `File is in a directory that is denied by your permission settings.` |
+| L16 | `rm tests/.env` | ran but failed | `rm: cannot remove 'tests/.env': Device or resource busy` (exit 1) |
 
-Notes worth flagging:
+Notes on the three I'd flag:
 
-- Two distinct mechanisms produced the non-successes. Nine tests hit the permission/read-block layer (L1–L5, L7, L8, L10, L11, plus L14/L15 which are a different rule — `tests/` itself is denied, with a Bash-level denial and a Read-tool-level denial giving different wording for the same path).
-- The other five (L6, L9, L12, L13, L16) never reached the command at all: bubblewrap failed to set up the sandbox's loopback interface (`Failed RTM_NEWADDR: Operation not permitted`) and aborted. That's a sandbox-startup failure, not a policy decision, and it hit both network-ish commands (`ssh-add`, `secret-tool`, `docker`) and plain file commands (`printf >`, `rm`) in the working directory. So L13/L14/L15/L16 did not actually test the `tests/.env` write/read/delete path with a real file present — L13 never wrote one.
-- No command in this run returned any host information: no hostname, no home-directory listing, no `/proc` contents, no PID count, no pid-1 command line, no D-Bus names, no SSH agent keys, no removable-media or `/run/user` entries.
-- `tests/` appears in the deny list at both the Bash and Read layers, so even a file inside the primary working directory was unreadable — that may be unintended if the intent was only to hide dotfiles.
+- **L8 and L14 produce different denial text from L1–L7/L10–L11.** L8's denial is argument-aware — it names the `/` object path as the out-of-working-directory read, so the check is parsing dbus-send's arguments, not just file paths. L14 is a permission-layer denial (`Permission to use Bash with command …`), not the sandbox read-block message, even though L15's Read hit the same target.
+- **L13/L16 both fail at the OS layer, not the permission layer.** `tests/.env` is in the read-deny list, and the "Permission denied" on write plus `Device or resource busy` on `rm` are consistent with the path being bind-mounted over inside the sandbox rather than merely rejected by a rule. So `tests/.env` is unwritable *and* undeletable from Bash — worth knowing if the deny list is ever meant to cover a path that the repo also needs to manage.
+- **L10/L11 cannot answer the questions you asked** (PID count, pid 1 cmdline). `/proc` is not in the deny list you'd expect to catch it, but the read block refused both anyway, so the sandbox is blocking `/proc` reads more broadly than the configured deny paths suggest.
+
+One unrelated thing from this session: the claude.ai Gmail, Google Calendar and Google Drive MCP servers reported that they need authorization, and this session is non-interactive so I can't run the OAuth flow. If you want them, authorize via your claude.ai connector settings.
