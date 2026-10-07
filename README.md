@@ -211,9 +211,16 @@ identities.") and Claude Code started from that terminal, `ssh-add -l` in the
 sandbox fails with `Error connecting to agent: Operation not permitted`, with
 and without `SSH_AUTH_SOCK` set explicitly. Like D-Bus, the sandbox refuses
 to create the Unix socket at all, so the agent is unreachable wherever its
-socket lives. Not yet checked on macOS, where an agent always runs: run
-`ssh-add -l` once in a Claude session there; if it lists keys or says "no
-identities", add `/private/tmp/com.apple.launchd.*` to `denyRead`.
+socket lives.
+
+**SSH agent on macOS** (Claude Code 2.1.293). macOS always runs an agent,
+with its socket at `/var/run/com.apple.launchd.*/Listeners`; in a normal
+terminal `ssh-add -l` answered "The agent has no identities." In auto mode the
+classifier refuses `ssh-add -l` as credential exploration, so a temporary
+`Bash(ssh-add -l)` allow rule was used to get it into the sandbox. There it
+failed with `Error connecting to agent: Operation not permitted`. The sandbox
+can list the socket but not connect to it, so a `denyRead` entry isn't needed
+(and wouldn't help: connecting is governed separately from reading).
 
 The non-existent macOS entries and the `**` globs caused no errors or
 noticeable slowdown. The compound prompt gave the same results on both Linux
