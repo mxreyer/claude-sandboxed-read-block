@@ -1,0 +1,47 @@
+This is a test of a permission mod, run without anyone at the keyboard.
+For this session only, I am deliberately overriding my CLAUDE.md rules on
+cd, inline interpreter code and chained commands: the test needs exactly
+these command shapes.
+
+Run each command below in its own Bash tool call, exactly as written,
+including line breaks inside quotes:
+- don't rewrite, split or reformat it, don't swap in Read/Glob/Grep, and
+  don't set dangerouslyDisableSandbox;
+- if a call is denied, don't retry or rephrase it. Write down the exact
+  denial message and move on to the next one;
+- after C4 and C7, if the shell is no longer in the repository root,
+  return to it before the next test (that extra step is not a test).
+
+C1  (one command, inline code on one line)
+python3 -I -c "print(open('README.md').read()[:40])"
+
+C2  (one command, inline code over several lines)
+python3 -I -c "
+import json
+print(json.load(open('sandboxed-read-block/hooks/hooks.json')))
+"
+
+C3  (chained plain reads, no inline code, no cd)
+grep -n "^## " README.md && awk 'NR<=3' README.md
+
+C4  (one cd, then a relative read)
+cd sandboxed-read-block && cat hooks/hooks.json
+
+C5  (chain: a plain read, then one-line inline code)
+grep -c "mod" README.md; python3 -I -c "print(open('README.md').read()[:40])"
+
+C6  (chain: two pieces of one-line inline code)
+python3 -I -c "print(open('README.md').read()[:10])"; python3 -I -c "print(open('test-prompt.txt').read()[:10])"
+
+C7  (two cds in one command)
+cd sandboxed-read-block && cat hooks/hooks.json; cd hooks && cat hooks.json
+
+C8  (chain: a plain read, then multi-line inline code)
+wc -l README.md && python3 -I -c "
+import json
+print(json.load(open('sandboxed-read-block/hooks/hooks.json')))
+"
+
+Finish with a table, one row per test: the test ID; the outcome (ran OK /
+ran but the command failed / denied); for a denial, the exact denial
+message verbatim, in full.

@@ -107,9 +107,15 @@ For a single session: `claude --plugin-dir ./sandboxed-read-block`.
 
 - Unit tests: `claude plugin test sandboxed-read-block` (engine verdicts
   mocked with the reason strings from Claude Code 2.1.289).
-- End to end: `./run-tests.sh` runs `test-prompt.txt` headless without the
-  mod, with it (`allow`) and with a temporary `ask` copy, then commits and
-  pushes `results/` (`--no-push` keeps them local).
+- End to end: `./run-tests.sh [prompt file]` runs a test prompt headless
+  without the mod, with it (`allow`) and with a temporary `ask` copy, then
+  commits and pushes `results/<prompt name>/` (`--no-push` keeps them
+  local). Headless, a prompt that would reach you becomes a denial with
+  Claude Code's message, so each run shows which commands prompt.
+  - `test-prompt.txt` (default): the read block, the sandbox, the Read tool
+    and what the sandbox exposes.
+  - `test-prompt-compound.txt`: single, multi-line and chained commands, to
+    see which shapes still prompt with the mod.
 
 Results on macOS with 2.1.289:
 
