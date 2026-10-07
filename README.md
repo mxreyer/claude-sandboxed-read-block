@@ -1,10 +1,5 @@
 # sandboxed-read-block
 
-> **Disclaimer:** This project was developed with the assistance of Claude,
-> Anthropic's AI assistant, via [Claude Code](https://claude.com/claude-code).
-> The code, tests and documentation were written with Claude and reviewed
-> and tested by the author. Use at your own risk.
-
 A Claude Code mod for setups that run the **sandbox** together with
 `permissions.blockReadsOutsideWorkingDirectories`.
 
@@ -170,3 +165,7 @@ gap before relying on the mod:
 | C6 | two one-line `python3 -c` chained | prompt (compound summary) | runs (checked part by part) |
 | C7 | two `cd`s with relative reads | runs | runs |
 | C8 | plain read `&&` multi-line `python3 -c` | runs | runs |
+
+---
+
+_Co-authored with [Claude Code](https://claude.com/claude-code)._
