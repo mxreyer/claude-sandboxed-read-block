@@ -1,0 +1,26 @@
+I ran all 16 tests in the order given. The permission layer blocked two of them (L14 and L15); the rest ran, and six of those failed on sandbox restrictions or a missing file.
+
+| ID | Outcome | Denial message / first error line / listing |
+|---|---|---|
+| L1 | ran but the command failed | `cat: /home/max/.bashrc: No such file or directory` |
+| L2 | ran OK | Listed only `claude-plugins` |
+| L3 | ran OK | `bc250` |
+| L4 | ran OK | Nothing listed (empty) |
+| L5 | ran OK | `/media:` and `/mnt:`, both empty |
+| L6 | ran but the command failed | `Could not open a connection to your authentication agent.` |
+| L7 | ran OK | Nothing listed (empty) |
+| L8 | ran but the command failed | `Failed to open connection to "session" message bus: Failed to open socket: Operation not permitted` |
+| L9 | ran but the command failed | `secret-tool: Unable to create socket: Operation not permitted` |
+| L10 | ran OK | 3 numeric PID entries (`1`, `2`, `4`), plus the usual non-PID entries |
+| L11 | ran OK | `/proc/self/fd/3 /bin/bash -c source /home/max/.claude/shell-snapshots/snapshot-bash-1791398634300-mm8o4c.sh 2>/dev/null \|\| true && export TMPDIR=/tmp/claude-1000 && export GIT_CONFIG_PARAMETERS="${GIT_CONFIG_PARAMETERS:+${GIT_CONFIG_PARAMETERS} }'credential.http://localhost:3128.helper='" && shopt -u extglob 2>/dev/null \|\| true && { \builtin unalias -- 'unsetenv'; \builtin unset -f -- 'unsetenv'; } >/dev/null 2>&1 \|\| true && eval 'cat /proc/1/cmdline' < /dev/null && pwd -P >\| /tmp/claude-1000/cwd-3a88 ` |
+| L12 | ran but the command failed | `permission denied while trying to connect to the docker API at unix:///var/run/docker.sock` |
+| L13 | ran but the command failed | `/bin/bash: line 1: tests/.env: Permission denied` |
+| L14 | denied | `Permission to use Bash with command cat tests/.env has been denied.` |
+| L15 | denied | `File is in a directory that is denied by your permission settings.` |
+| L16 | ran but the command failed | `rm: cannot remove 'tests/.env': Device or resource busy` |
+
+- **L13–L16:** The dummy file was never created. `tests/.env` is on the sandbox's read-deny list. The "Device or resource busy" error in L16 suggests the sandbox has mounted something over that path. So L14 and L15 were checking a path that the sandbox blocks, not a file that exists. L15's message also calls the whole directory denied, not just the file.
+- **L10/L11:** The process list only shows processes inside the sandbox. PID 1 is the sandbox's own shell running the L11 command, not the host's init.
+- **Not installed:** none of the commands. `ssh-add`, `dbus-send`, `secret-tool` and `docker` all ran and failed on their connections.
+
+Separately, the session reported that the claude.ai Gmail, Google Calendar and Google Drive connectors need authorising. That has to be done in your claude.ai connector settings, because it can't be done in a non-interactive session. Those connectors weren't used in this test.

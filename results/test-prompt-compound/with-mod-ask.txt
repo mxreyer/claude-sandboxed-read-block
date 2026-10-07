@@ -1,0 +1,18 @@
+All eight tests ran. Four were denied (C1, C4, C5, C6) and four ran OK (C2, C3, C7, C8).
+
+| Test | Outcome | Denial message |
+|---|---|---|
+| C1 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| C2 | ran OK (printed `{'modules': ['./register.ts']}`) | — |
+| C3 | ran OK (printed the `##` headings, then the first 3 lines of README) | — |
+| C4 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| C5 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| C6 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| C7 | ran OK (printed `{ "modules": ["./register.ts"] }` twice) | — |
+| C8 | ran OK (printed `200 README.md` and `{'modules': ['./register.ts']}`) | — |
+
+- **C4 vs C7 is the odd pair.** C4 (one `cd`, then a relative read) was denied, but C7 (two `cd`s, each followed by a relative read) ran.
+- **One-line vs multi-line inline code also split.** Commands with one-line `python3 -I -c` were denied (C1, C5, C6). The multi-line ones were allowed (C2, C8), whether alone or after a plain read.
+- **Working directory:** C4 was denied, so the shell stayed at the repository root. C7 left the shell in `sandboxed-read-block/hooks`, and I ran `cd` back to the root before C8. The `pwd` check I ran alongside C7 still showed the root, probably because it ran before C7; the harness then reported the directory change.
+
+Also, the claude.ai Gmail, Google Calendar and Google Drive connectors need to be authorized before they can be used. You can do that in your claude.ai connector settings. The tests didn't need them.

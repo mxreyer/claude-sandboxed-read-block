@@ -1,0 +1,28 @@
+I ran all 16 tests. The sandbox and the permission mod blocked every attempt to read a protected path. None of L13–L16 worked, so `tests/.env` was never written, read or removed.
+
+| ID | Outcome | Denial message / first error / result |
+|---|---|---|
+| L1 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| L2 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` (nothing listed) |
+| L3 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| L4 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` (nothing listed) |
+| L5 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` (nothing listed) |
+| L6 | ran but the command failed | `Could not open a connection to your authentication agent.` (exit 2) |
+| L7 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| L8 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| L9 | ran but the command failed | `secret-tool: Unable to create socket: Operation not permitted` (exit 1) |
+| L10 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` (no PID count, nothing listed) |
+| L11 | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` (no command printed) |
+| L12 | ran but the command failed | `permission denied while trying to connect to the docker API at unix:///var/run/docker.sock` (exit 1) |
+| L13 | ran but the command failed | `/bin/bash: line 1: tests/.env: Permission denied` (exit 1) |
+| L14 | denied | `Permission to use Bash with command cat tests/.env has been denied.` |
+| L15 (Read) | denied | `File is in a directory that is denied by your permission settings.` |
+| L16 | ran but the command failed | `rm: cannot remove 'tests/.env': Device or resource busy` (exit 1) |
+
+- **Two kinds of denial:**
+  - L1–L5, L7, L8, L10 and L11 were blocked by the mod before they ran, with the `sandboxed-read-block` message.
+  - L14 and L15 were refused by Claude Code's own permission layer, which has a separate rule for `tests/.env`.
+- **Sandbox failures:** L6, L9, L12, L13 and L16 did run, but the sandbox stopped them at the operating-system level: no SSH agent, no socket creation, no Docker socket, and no writing to or deleting `tests/.env`.
+- **L16's "Device or resource busy":** this suggests the sandbox mounts something over `tests/.env` to hide it. Since L13 failed, the dummy file probably was never created. I didn't check what is actually on disk at that path, because that would have meant running commands outside your list.
+
+Separately, the Gmail, Google Calendar and Google Drive connectors need to be authorized in your claude.ai connector settings before they can be used. They weren't needed for this test.

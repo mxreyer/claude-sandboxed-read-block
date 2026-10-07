@@ -1,0 +1,21 @@
+Four of the eight tests ran and four were denied. I ran each command once, exactly as written, without retrying any of them.
+
+| Test | Outcome | Denial message (verbatim) |
+|---|---|---|
+| C1 | denied | `python3 names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
+| C2 | ran OK (`{'modules': ['./register.ts']}`) | — |
+| C3 | ran OK | — |
+| C4 | denied | `cd names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
+| C5 | denied | `python3 names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
+| C6 | denied | `This Bash command contains multiple operations. The following parts require approval: python3 -I -c "print(open('README.md').read()[:10])", python3 -I -c "print(open('tests/test-prompt.txt').read()[:10])"` |
+| C7 | ran OK (printed hooks.json twice) | — |
+| C8 | ran OK (`200 README.md`, then the dict) | — |
+
+The results aren't consistent, and you'll probably want to look into these:
+- **Inline code:** one-line `-c` code was denied (C1, C5), but code spread over several lines was allowed (C2, C8). I'd have expected the reverse, or the same result for both.
+- **`cd`:** a single `cd` followed by a relative read was denied (C4). The longer command with two `cd`s (C7) was allowed.
+- **C6's message is different:** the other denials came from the read block. C6 got the generic approval message for multi-part commands instead.
+
+C4 was denied, so the shell never left the repository root and I didn't need to return. C7 left the shell in `sandboxed-read-block/hooks`, so I ran `cd` back to the root before C8.
+
+Separately, the session reported that the claude.ai Gmail, Google Calendar and Google Drive connectors need to be authorised in your claude.ai connector settings. They can't be used until then. This test didn't need them.
