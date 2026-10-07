@@ -1,30 +1,25 @@
-All 16 commands have been run. Here are the results.
+I ran all 16 tests. Nine were refused before they ran (eight by the read-block hook, one by the permission layer), and no test ran successfully.
 
-| ID | Outcome | Denial message (verbatim) / first error line |
-|----|---------|-----------------------------------------------|
-| L1 `cat ~/.bashrc` | denied | `Reads outside the working directories are blocked (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
-| L2 `ls ~` | denied | `Reads outside the working directories are blocked (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
-| L3 `cat /etc/hostname` | denied | `Reads outside the working directories are blocked (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
-| L4 `ls /run/user` | denied | `Reads outside the working directories are blocked (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
-| L5 `ls /media /mnt` | denied | `Reads outside the working directories are blocked (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
-| L6 `ssh-add -l` | ran but command failed | `Could not open a connection to your authentication agent.` (exit 2) |
-| L7 `ls /tmp/.X11-unix` | denied | `Reads outside the working directories are blocked (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
-| L8 `dbus-send … ListNames` | denied | `dbus-send names '/', outside the working directories, which the read block does not allow without asking (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
-| L9 `secret-tool search --all service x` | denied (classifier) | `Permission for this action was denied by the Claude Code auto mode classifier. Reason: [Credential Exploration].` (plus the standard work-around guidance that follows) |
-| L10 `ls /proc` | denied | `Reads outside the working directories are blocked (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
-| L11 `cat /proc/1/cmdline` | denied | `Reads outside the working directories are blocked (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
-| L12 `docker ps` | ran but command failed | `permission denied while trying to connect to the docker API at unix:///var/run/docker.sock` (exit 1) |
-| L13 `printf … > tests/.env` | ran but command failed | `/bin/bash: line 1: tests/.env: Permission denied` (exit 1) |
+| ID | Outcome | Denial message / first error line / output |
+|---|---|---|
+| L1 `cat ~/.bashrc` | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| L2 `ls ~` | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` (nothing listed) |
+| L3 `cat /etc/hostname` | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| L4 `ls /run/user` | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` (nothing listed) |
+| L5 `ls /media /mnt` | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` (nothing listed) |
+| L6 `ssh-add -l` | ran but the command failed | `Could not open a connection to your authentication agent.` (exit 2) |
+| L7 `ls /tmp/.X11-unix` | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| L8 `dbus-send … ListNames` | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` |
+| L9 `secret-tool search …` | not installed | `/bin/bash: line 1: secret-tool: command not found` (exit 127) |
+| L10 `ls /proc` | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` (no PID count, because nothing was listed) |
+| L11 `cat /proc/1/cmdline` | denied | `sandboxed-read-block: the sandbox enforces the read block for this command` (no command printed) |
+| L12 `docker ps` | ran but the command failed | `permission denied while trying to connect to the docker API at unix:///var/run/docker.sock` (exit 1) |
+| L13 `printf … > tests/.env` | ran but the command failed | `/bin/bash: line 1: tests/.env: Permission denied` (exit 1) |
 | L14 `cat tests/.env` | denied | `Permission to use Bash with command cat tests/.env has been denied.` |
-| L15 Read `tests/.env` | denied (Read tool) | `File is in a directory that is denied by your permission settings.` |
-| L16 `rm tests/.env` | ran but command failed | `rm: cannot remove 'tests/.env': Device or resource busy` |
+| L15 Read `tests/.env` | denied | `File is in a directory that is denied by your permission settings.` |
+| L16 `rm tests/.env` | ran but the command failed | `rm: cannot remove 'tests/.env': Device or resource busy` (exit 1) |
 
-Notes on the specifically-requested fields:
-
-- **L10 (`ls /proc`)** — denied by the read block before any listing, so no numeric/PID entry count is available.
-- **L11 (`cat /proc/1/cmdline`)** — denied by the read block, so no cmdline string was printed.
-- **L2, L4, L5** — all three were denied by the read block, so nothing was listed in any of them.
-
-Two incidental observations that may matter for the test:
-- **L13/L16**: the write to `tests/.env` failed with the sandbox filesystem error (`Permission denied`), and the later `rm` failed with `Device or resource busy` — i.e. the file was never created by L13, and `tests/.env` appears to be a bind-mount/masked path (consistent with it being listed in the sandbox's read-deny set), which is why `rm` reports it busy rather than "No such file."
-- The session's model ID changed mid-run (L1–L12 under `claude-opus-5-5`, L13–L16 under `claude-opus-4-8`); flagging in case it affects how you attribute the results.
+Notes:
+- **L3:** `/etc/hostname` is not in the sandbox's read-deny list, but the hook still blocked it. So the hook blocks more than the sandbox's own list.
+- **L13 and L16:** `tests/.env` is on the sandbox read-deny list. "Device or resource busy" on `rm` suggests the sandbox mounts something over that path inside the sandbox. That would explain both the write failure and the failed `rm`. I haven't checked whether a `tests/.env` file exists on the host itself.
+- **L14 and L15:** these were stopped by the permission layer rather than the hook, so their denial messages are worded differently.
