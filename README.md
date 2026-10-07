@@ -130,6 +130,8 @@ auto-allow too.
     tool, and what the sandbox exposes beyond files.
   - `tests/test-prompt-compound.txt`: single, multi-line and chained
     commands.
+  - `tests/test-prompt-linux.txt`: what the sandbox hides on Linux (see
+    below). Expects the Linux `denyRead` entries from your settings.
 
 ### Results (macOS)
 
@@ -165,6 +167,33 @@ gap before relying on the mod:
 | C6 | two one-line `python3 -c` chained | prompt (compound summary) | runs (checked part by part) |
 | C7 | two `cd`s with relative reads | runs | runs |
 | C8 | plain read `&&` multi-line `python3 -c` | runs | runs |
+
+### Linux checks (not yet run)
+
+`tests/test-prompt-linux.txt` assumes these `sandbox.filesystem.denyRead`
+entries: `/media`, `/mnt`, `/run/user`, `/tmp/ssh-*`, `/tmp/.X11-unix`,
+`**/.env`, `**/.env.*`, and `Read(**/.env)` in `permissions.deny`. Read the
+`with-mod-allow` report:
+
+| Test | Should | If not |
+|---|---|---|
+| L1 `cat ~/.bashrc`, L2 `ls ~` | fail (home hidden) | the sandbox doesn't enforce the read block on this machine: don't use the mod here |
+| L3 `cat /etc/hostname` | succeed | (expected: the sandbox only hides home) |
+| L4 `ls /run/user` | fail | `/run/user` isn't denied: D-Bus, keyring and agent sockets are reachable |
+| L5 `ls /media /mnt` | fail | mounts are readable; add them to `denyRead` |
+| L6 `ssh-add -l` | fail to reach the agent | the sandbox can use your SSH keys |
+| L7 `ls /tmp/.X11-unix` | fail | the X server is reachable |
+| L8 `dbus-send … ListNames` | fail | the session bus is reachable, possibly over an abstract socket that `denyRead` can't hide |
+| L9 `secret-tool search …` | fail | the keyring is readable |
+| L10 `ls /proc` | only a few PIDs | other processes are visible, including their environment variables |
+| L11 `cat /proc/1/cmdline` | not your init (e.g. `bwrap` or a shell) | the sandbox shares the host's process list |
+| L12 `docker ps` | fail to reach the daemon | Docker can read any file for the sandbox |
+| L13–L14 write then `cat tests/.env` | write succeeds, `cat` fails | `**/.env` doesn't match in `denyRead`; only the Read rule protects `.env` files |
+| L15 Read tool on `tests/.env` | denied | the `Read(**/.env)` rule doesn't match |
+| L16 `rm tests/.env` | cleans up | delete it by hand |
+
+If every command runs at normal speed, the macOS-only entries (e.g.
+`/Network`) and the `**` globs cause no problems on Linux.
 
 ---
 
