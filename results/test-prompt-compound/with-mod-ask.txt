@@ -1,0 +1,20 @@
+All eight ran. Results:
+
+| Test | Outcome | Denial message (verbatim) |
+|---|---|---|
+| C1 | denied | `python3 names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
+| C2 | ran but the command failed | — (`Exit code 1` / `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`) |
+| C3 | ran but the command failed | — (`Exit code 1` / `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`) |
+| C4 | denied | `cd names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
+| C5 | denied | `python3 names a path that is computed at run time, which cannot be checked against the read block (permissions.blockReadsOutsideWorkingDirectories)` |
+| C6 | denied | `This Bash command contains multiple operations. The following parts require approval: python3 -I -c "print(open('README.md').read()[:10])", python3 -I -c "print(open('tests/test-prompt.txt').read()[:10])"` |
+| C7 | ran but the command failed | — (`Exit code 1` / `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`) |
+| C8 | ran but the command failed | — (`Exit code 1` / `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`) |
+
+Important caveats about this run:
+
+- **The bubblewrap sandbox could not start for any command.** `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` is an environment failure, not a per-command verdict. I confirmed it with a bare `pwd` (not one of the tests), which failed identically twice. So every "ran but the command failed" row means only *"passed the permission check, then the sandbox failed to launch"* — none of C2, C3, C7, C8 actually executed, and I have no evidence about what they would have printed or whether the read block would have stopped them at runtime.
+- **The cwd step after C4 and C7 was moot.** Both commands never executed, so no `cd` took effect and the shell stayed in the repo root. I could not positively verify this with `pwd`, since `pwd` also dies in bwrap.
+- Two shape-level observations that *are* valid, because they come from the static check rather than from execution: C4's single `cd` was denied while C7's two chained `cd`s passed the check, and C5's `plain read ; one-line inline code` was denied while C8's `plain read && multi-line inline code` passed. C6 was refused by a different rule (multi-operation approval), not the read-block rule that caught C1/C4/C5.
+
+If you want real pass/fail data for C2, C3, C7 and C8, the bwrap loopback failure needs fixing first — that's a change to the sandbox environment, so it's your call rather than something I should work around.
