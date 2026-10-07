@@ -1,237 +1,126 @@
 # sandboxed-read-block
 
-A Claude Code mod for setups that run the **sandbox** together with
-`permissions.blockReadsOutsideWorkingDirectories`.
+A small plugin ("mod") for [Claude Code](https://claude.com/claude-code) that
+removes a class of redundant permission prompts when you run Claude Code with
+both its **sandbox** and the **read block** turned on.
 
-The read block prompts on any Bash command whose read targets it can't verify
-from the command text (`cd dir && cat file`, inline `python3 -c "…"`, paths
-outside the project). With the sandbox on, the same setting also denies
-sandboxed commands your home directory, so for Bash these prompts are
-redundant. The mod removes them; Claude's own file tools (Read, Edit, …) stay
-blocked as before.
+## The problem
+
+Claude Code has several independent safety features. Three of them matter
+here:
+
+- **The sandbox** (`sandbox.enabled`) runs every shell command Claude
+  executes inside an operating-system-level cage (Seatbelt on macOS,
+  bubblewrap on Linux). The cage limits which files the command can touch,
+  whatever the command is.
+- **The read block** (`permissions.blockReadsOutsideWorkingDirectories`)
+  stops Claude from reading files outside the project it's working on. With
+  the sandbox on, it also takes your home directory away from sandboxed
+  commands entirely.
+- **Auto mode** (`permissions.defaultMode: "auto"`) lets a classifier, an AI
+  reviewer, approve or refuse Claude's actions, so you aren't asked about
+  every command.
+
+The read block checks shell commands by reading the command *text*. When it
+can't tell from the text which files a command will read, it doesn't let the
+classifier decide: it asks you. That happens for everyday commands such as:
+
+```sh
+cd resume && latexmk main.tex
+python3 -c "import json; print(json.load(open('config.json')))"
+```
+
+With the sandbox on, these prompts are redundant. Whatever such a command
+actually reads, the sandbox already stops it from reading your home directory
+outside the project. You end up approving harmless commands by hand, many
+times a day.
+
+## What the mod does
+
+When the read block is the **only** reason Claude Code wants to ask you about
+a shell command, and the command will run inside the sandbox, the mod lets
+the command run without the prompt. The sandbox still enforces its limits,
+so a command that tries to read, say, `~/.ssh` still fails.
+
+Everything else is unchanged:
+
+- Prompts and classifier reviews for any *other* reason stay as they are.
+  For a chained command (`a && b; c`), the mod checks each part separately
+  and steps in only if every part is fine or held up only by the read block.
+- Claude's own file tools (Read, Edit, …) stay blocked outside the project.
+- If the sandbox is off, or a command could run outside it, the mod does
+  nothing.
+- If the mod fails for any reason, Claude Code's normal behaviour applies.
+
+### Is that safe?
+
+Mostly, with one trade-off you should know about. A command the mod lets
+through runs **without review**: neither you nor the classifier looks at it.
+The sandbox still limits *where* it can read and write, but not *what* it
+does inside the project. For example, `cd src && rm -rf build` would run
+unreviewed if the read block was the only reason it needed approval.
+
+Commands written plainly, with literal paths, no `cd` and no inline code,
+don't trigger the read block at all. They keep the normal classifier review.
+If you ask Claude (e.g. in your `CLAUDE.md`) to write commands that way, very
+few commands fall into the unreviewed group.
+
+On macOS and Linux, tests confirmed that the sandbox keeps commands away
+from your home directory, SSH agent, Docker daemon, keyring and other
+processes, with or without the mod. See [Test results](#test-results).
+
+## Requirements
+
+- Claude Code **2.1.285 or later** (2.1.274 didn't load the mod).
+- The sandbox and the read block turned on, ideally with auto mode:
+
+  ```json
+  "sandbox": { "enabled": true, "allowUnsandboxedCommands": false },
+  "permissions": {
+    "defaultMode": "auto",
+    "blockReadsOutsideWorkingDirectories": true
+  }
+  ```
+
+  `allowUnsandboxedCommands: false` matters: it stops Claude from retrying a
+  blocked command outside the sandbox.
 
 ## Install
 
-Copy the `sandboxed-read-block/` folder somewhere stable, add it to
-`~/.claude/settings.json` and restart Claude Code:
+1. Put the `sandboxed-read-block/` folder somewhere stable, e.g. clone this
+   repository into `~/claude-plugins/`.
+2. Tell Claude Code to load it, in `~/.claude/settings.json`:
 
-```json
-"env": {
-  "CLAUDE_CODE_PLUGIN_DIRS": "~/claude-plugins/sandboxed-read-block"
-}
-```
+   ```json
+   "env": {
+     "CLAUDE_CODE_PLUGIN_DIRS": "~/claude-plugins/claude-sandboxed-read-block/sandboxed-read-block"
+   }
+   ```
 
-For a single session: `claude --plugin-dir ./sandboxed-read-block`.
+3. Restart Claude Code. Under the prompt you should now see
+   **`read-block mod on`**.
 
-While loaded, the mod pins `read-block mod on` under the prompt. Copy the
-folder again after any update and restart.
+To try it for one session only: `claude --plugin-dir ./sandboxed-read-block`.
 
-**If the status line doesn't appear:** plugin hooks modules are early access,
-and some installs only load them when `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`
-is set in Claude Code's environment. `claude --debug` then logs
-`hooks module not loaded: hooks modules are not turned on for installed
-plugins`. Add `export CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` to your shell
-profile (e.g. `~/.bashrc`), or add it to the same `env` block as above, and
-restart. Requires Claude Code 2.1.285 or later; 2.1.274 didn't load the mod
-at all.
+After updating the folder (e.g. `git pull`), restart Claude Code.
 
-## How it works
+### If `read-block mod on` doesn't appear
 
-`hooks/register.ts` hooks `tool.check` for Bash. It changes Claude Code's
-verdict only when all of these hold:
+- **Plugin hooks are an early-access feature.** On some installs they only
+  load when the environment variable `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` is
+  set. Add `export CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` to your shell profile
+  (e.g. `~/.bashrc` or `~/.zshrc`) and restart. Starting `claude --debug`
+  shows `hooks module not loaded: hooks modules are not turned on…` when this
+  is the cause.
+- **Check your version** with `claude --version` (2.1.285 or later).
 
-- the verdict is `ask` and its reason names
-  `permissions.blockReadsOutsideWorkingDirectories`, or, for a compound
-  command, every part needing approval is held up only by the read block
-  (see below);
-- no ask rule or settings hook made that decision;
-- `sandbox.enabled` is on;
-- the command can't run unsandboxed (no `dangerouslyDisableSandbox`, or
-  `allowUnsandboxedCommands: false`);
-- the command doesn't mention anything in `sandbox.excludedCommands`.
+### Ubuntu 24.04: the sandbox itself doesn't start
 
-In every other case, including a hook error, Claude Code's own verdict
-stands.
-
-**Compound commands.** When two or more parts of a chained command need
-approval, Claude Code only says *"This Bash command contains multiple
-operations. The following parts require approval: …"*, not why. The mod then
-splits the command at `;`, `&&`, `||`, `|`, `&` and line breaks (respecting
-quotes) and asks Claude Code about each part on its own. It skips the prompt
-only if every part is either allowed or held up only by the read block, and
-at least one is held up by it. Any other reason keeps the prompt, and so does
-anything it can't split with certainty: `$(…)`, backticks, `( )`, `{ }`,
-heredocs, unbalanced quotes.
-
-### Options
-
-Set in `/config`, or in `~/.claude/settings.json` under
-`"pluginConfigs": { "sandboxed-read-block": { … } }`.
-
-| Option | Default | Effect |
-|---|---|---|
-| `verdict` | `allow` | `allow` runs the command; the sandbox confines it. `ask` drops the read-block reason but still asks; tested in 2.1.289, that ask shows a dialog rather than going to the auto-mode classifier, so it doesn't remove prompts. |
-| `debug` | off | Shows a notice with Claude Code's reason for every Bash prompt the mod leaves alone. Noisy: in auto mode most commands get a generic ask that the classifier then approves. |
-
-### Seeing what it does
-
-- Each skipped prompt shows a notice with the command and bumps a count on
-  the status line (`read-block mod on · 3 prompts skipped`).
-- A read-block prompt the mod keeps shows a notice naming the check that kept
-  it (e.g. `Kept a read-block prompt: the sandbox is off`).
-- `/read-block-log` lists the last 20 Bash permission checks, newest first:
-  the command, Claude Code's verdict and reason, and what the mod did. Run it
-  right after an unexpected prompt.
-
-## Why not `autoAllowBashIfSandboxed: true`?
-
-That setting approves **every** sandboxed Bash command without classifier
-review. The sandbox limits where a command can read and write, but not what
-it does there: it doesn't stop deleting files in the project or sending data
-to an allowed domain. The classifier does.
-
-The mod skips the classifier only for commands where the read block was the
-sole reason to prompt:
-
-| Command | `autoAllowBashIfSandboxed: true` | The mod |
-|---|---|---|
-| `rm -rf src` (literal path) | runs unreviewed | classifier reviews it |
-| `git push --force`, `curl -d @data allowed-domain.com` | run unreviewed | classifier reviews them |
-| `cd src && rm -rf build` | runs unreviewed | runs unreviewed |
-| `python3 -c "…open('file')…"` | runs unreviewed | runs unreviewed |
-
-The mod doesn't pick commands by risk: a destructive command wrapped in
-`cd` or inline code skips review either way. Writing commands with literal
-paths, no `cd` and no inline code keeps them out of that group.
-
-Untested: whether `autoAllowBashIfSandboxed: true` removes the read-block
-prompts at all. Those prompts bypass the classifier and may bypass the
-auto-allow too.
-
-## Limits
-
-- **Commands it lets through get no further review.** Neither you nor the
-  classifier checks them; only the sandbox's read and write limits apply.
-- **Only the home directory is protected for Bash.** The sandbox doesn't
-  block paths such as `/etc`. Add anything private outside your home to
-  `sandbox.filesystem.denyRead`.
-- **The sandbox side of the read block may be off** if the sandbox's
-  filesystem policy is relaxed, a managed read-path lock is on, or the
-  working directory's name contains glob characters.
-- **The mod depends on the wording of Claude Code's reasons.** If a release
-  rewords them, the mod stops matching and the prompts return; it never
-  allows more.
-- **The hook API is early access** and may change between releases.
-
-## Testing
-
-- **Unit tests:** `claude plugin test sandboxed-read-block` (25 tests;
-  Claude Code's verdicts mocked with its real reason strings).
-- **End to end:** `tests/run-tests.sh [--push] [prompt file]` runs a test
-  prompt headless from the repository root without the mod, with it
-  (`allow`) and with a temporary `ask` copy, writing the reports to
-  `results/<prompt name>/` (gitignored; `--push` commits and pushes them).
-  Headless, a prompt that would reach you becomes a denial with Claude
-  Code's message. Remove `CLAUDE_CODE_PLUGIN_DIRS` from your settings while
-  testing; the script refuses to run otherwise, since an installed copy
-  would load in every run.
-  - `tests/test-prompt.txt` (default): the read block, the sandbox, the Read
-    tool, and what the sandbox exposes beyond files.
-  - `tests/test-prompt-compound.txt`: single, multi-line and chained
-    commands.
-  - `tests/test-prompt-linux.txt`: what the sandbox hides on Linux (see
-    below). Expects the Linux `denyRead` entries from your settings.
-
-### Results (macOS)
-
-`tests/test-prompt.txt`, Claude Code 2.1.289:
-
-| Test | Without the mod | With the mod (`allow`) |
-|---|---|---|
-| `cd sandboxed-read-block && cat hooks/hooks.json` | prompt | runs |
-| `cat ~/.zshrc` | prompt | runs; the sandbox refuses it: `Operation not permitted` |
-| `cat /etc/hosts` | prompt | runs (outside what the sandbox denies) |
-| Read tool on `~/.zshrc` | blocked | blocked |
-
-T8–T11 check what the sandbox exposes beyond files (T9–T11 are Linux only).
-With the mod, each should fail inside the sandbox; if one succeeds, close the
-gap before relying on the mod:
-
-| Test | Should | If it succeeds |
-|---|---|---|
-| T8 `docker ps` | fail to reach the daemon | Docker can read any file for the sandbox: keep its socket out of `sandbox.network.allowUnixSockets` and `docker` out of `excludedCommands` |
-| T9 `ls /run/user` | fail | add `/run/user` to `sandbox.filesystem.denyRead` |
-| T10 `secret-tool search --all service x` | fail | the keyring is reachable over D-Bus: deny `/run/user` and check that Unix sockets are blocked |
-| T11 `ls /proc` | list only a few PIDs | other processes' environment variables are readable |
-
-`tests/test-prompt-compound.txt`, Claude Code 2.1.292:
-
-| Test | Command shape | Without the mod | With the mod (`allow`) |
-|---|---|---|---|
-| C1 | one-line `python3 -c` | prompt (read block) | runs |
-| C2 | multi-line `python3 -c` | runs | runs |
-| C3 | chained plain reads | runs | runs |
-| C4 | `cd dir && cat file` | prompt (read block) | runs |
-| C5 | plain read `;` one-line `python3 -c` | prompt (read block) | runs |
-| C6 | two one-line `python3 -c` chained | prompt (compound summary) | runs (checked part by part) |
-| C7 | two `cd`s with relative reads | runs | runs |
-| C8 | plain read `&&` multi-line `python3 -c` | runs | runs |
-
-### Linux checks
-
-`tests/test-prompt-linux.txt` on two machines: Fedora 44 (Claude Code
-2.1.286) and Ubuntu with kernel 6.8 (2.1.285), with these
-`sandbox.filesystem.denyRead` entries: `/media`, `/mnt`, `/run/user`,
-`/tmp/ssh-*`, `/tmp/.X11-unix`, `**/.env`, `**/.env.*` (plus macOS-only ones
-such as `/Network`), and `Read(**/.env)` in `permissions.deny`. Results with
-the mod (`allow`), the same on both machines:
-
-| Test | Result | Meaning |
-|---|---|---|
-| L1 `cat ~/.bashrc` | `No such file or directory` | home is hidden: the mod's premise holds on Linux |
-| L2 `ls ~` | only the folder leading to the project | same |
-| L3 `cat /etc/hostname` | printed | expected: the sandbox only hides home |
-| L4 `ls /run/user` | empty | hidden |
-| L5 `ls /media /mnt` | empty | hidden (or empty) |
-| L6 `ssh-add -l` | `Error connecting to agent: Operation not permitted` (Ubuntu, agent running) | agent unreachable; on Fedora no agent ran (see below) |
-| L7 `ls /tmp/.X11-unix` | empty | hidden (or no X server) |
-| L8 `dbus-send … ListNames` | `Failed to open socket: Operation not permitted` | creating Unix sockets is blocked, abstract sockets included |
-| L9 `secret-tool search …` | socket blocked, or refused by the classifier | keyring unreachable |
-| L10 `ls /proc` | 3 PIDs (1, 2, 4) | own process namespace |
-| L11 `cat /proc/1/cmdline` | the sandbox's own shell | host processes invisible |
-| L12 `docker ps` | `permission denied … /var/run/docker.sock` | daemon unreachable: on Ubuntu, `docker ps` works in a normal terminal, so the sandbox is what blocks it |
-| L13 write `tests/.env` | `Permission denied` | `**/.env` matches; side effect: sandboxed commands can't create `.env` files |
-| L14 `cat tests/.env` | denied by a permission rule | derived from `Read(**/.env)` |
-| L15 Read tool on `tests/.env` | denied | `Read(**/.env)` matches |
-| L16 `rm tests/.env` | `Device or resource busy` | the sandbox mounts a placeholder over the denied path |
-
-**SSH agent, checked by hand.** With an agent started in a terminal
-(`eval "$(ssh-agent -s)"`; `ssh-add -l` there answers "The agent has no
-identities.") and Claude Code started from that terminal, `ssh-add -l` in the
-sandbox fails with `Error connecting to agent: Operation not permitted`, with
-and without `SSH_AUTH_SOCK` set explicitly. Like D-Bus, the sandbox refuses
-to create the Unix socket at all, so the agent is unreachable wherever its
-socket lives.
-
-**SSH agent on macOS** (Claude Code 2.1.293). macOS always runs an agent,
-with its socket at `/var/run/com.apple.launchd.*/Listeners`; in a normal
-terminal `ssh-add -l` answered "The agent has no identities." In auto mode the
-classifier refuses `ssh-add -l` as credential exploration, so a temporary
-`Bash(ssh-add -l)` allow rule was used to get it into the sandbox. There it
-failed with `Error connecting to agent: Operation not permitted`. The sandbox
-can list the socket but not connect to it, so a `denyRead` entry isn't needed
-(and wouldn't help: connecting is governed separately from reading).
-
-The non-existent macOS entries and the `**` globs caused no errors or
-noticeable slowdown. The compound prompt gave the same results on both Linux
-machines as on macOS (table above).
-
-**Ubuntu 24.04 setup.** Out of the box, every sandboxed command failed with
-`bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`: Ubuntu's
-AppArmor restricts unprivileged user namespaces. It fails closed (nothing ran
-unsandboxed), but nothing works either. An AppArmor profile that allows only
-`bwrap` fixes it; save as `/etc/apparmor.d/bwrap` and load with
-`sudo apparmor_parser -r /etc/apparmor.d/bwrap`:
+On Ubuntu 24.04 every sandboxed command may fail with
+`bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`. This is
+Ubuntu's AppArmor restricting the kind of isolation bubblewrap needs. Nothing
+runs unsandboxed, but nothing works either. Allow it for `bwrap` alone by
+saving this as `/etc/apparmor.d/bwrap`:
 
 ```
 abi <abi/4.0>,
@@ -243,8 +132,116 @@ profile bwrap /usr/bin/bwrap flags=(unconfined) {
 }
 ```
 
-That machine also needed `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` (see
-Install) and Claude Code 2.1.285; 2.1.274 didn't load the mod.
+and loading it with `sudo apparmor_parser -r /etc/apparmor.d/bwrap`.
+
+## Using it
+
+- **Status line.** `read-block mod on` means the mod is active. After it
+  removes a prompt, the line shows a count, e.g.
+  `read-block mod on · 3 prompts skipped`, and a short notice names the
+  command.
+- **When it keeps a prompt** that the read block raised, a notice says why,
+  e.g. `Kept a read-block prompt: the sandbox is off`.
+- **`/read-block-log`** lists the last 20 shell commands Claude Code checked:
+  Claude Code's verdict and reason, and what the mod did. Run it right after
+  an unexpected prompt to see why it appeared.
+
+### Options
+
+Change these in `/config`, or in `~/.claude/settings.json` under
+`"pluginConfigs": { "sandboxed-read-block": { … } }`.
+
+| Option | Default | What it does |
+|---|---|---|
+| `verdict` | `allow` | `allow` runs the command. `ask` only removes the read-block reason and still asks; in practice that still shows you a prompt, so it doesn't help. |
+| `debug` | off | Shows a notice with Claude Code's reason for every shell command that needs approval for another reason. Noisy; only for troubleshooting. |
+
+## How it decides
+
+The mod hooks Claude Code's permission check for shell commands. It changes
+Claude Code's answer from "ask" to "allow" only when all of these hold:
+
+1. Claude Code wants to ask, and its reason is the read block. For a chained
+   command, Claude Code only says *"The following parts require approval:
+   …"*. The mod then splits the command at `;`, `&&`, `||`, `|`, `&` and line
+   breaks (respecting quotes) and asks Claude Code about each part on its
+   own. Every part must be either fine or held up only by the read block,
+   and at least one must be held up by it. If the command can't be split
+   reliably (`$(…)`, backticks, `( )`, `{ }`, heredocs), the prompt stays.
+2. None of your own "ask" rules or settings hooks made the decision.
+3. The sandbox is on (`sandbox.enabled`).
+4. The command can't run outside the sandbox (no `dangerouslyDisableSandbox`,
+   or `allowUnsandboxedCommands: false`).
+5. The command doesn't mention anything listed in `sandbox.excludedCommands`.
+   Those programs run outside the sandbox.
+
+The read block is recognised by the setting name in Claude Code's reason
+text. If a future release rewords it, the mod simply stops matching and the
+prompts come back; it never lets more through.
+
+The code is in `sandboxed-read-block/hooks/register.ts`.
+
+## Why not just set `autoAllowBashIfSandboxed: true`?
+
+That setting approves **every** sandboxed command without classifier
+review, not just the ones the read block was unsure about:
+
+| Command | `autoAllowBashIfSandboxed: true` | This mod |
+|---|---|---|
+| `rm -rf src` | runs unreviewed | classifier reviews it |
+| `git push --force` | runs unreviewed | classifier reviews it |
+| `cd src && rm -rf build` | runs unreviewed | runs unreviewed |
+| `python3 -c "…open('file')…"` | runs unreviewed | runs unreviewed |
+
+Whether `autoAllowBashIfSandboxed` would even remove the read-block prompts
+wasn't tested.
+
+## Limits
+
+- **Commands the mod lets through aren't reviewed** (see "Is that safe?").
+- **Only your home directory is hidden from sandboxed commands.** System
+  folders such as `/etc` stay readable. Add anything private elsewhere to
+  `sandbox.filesystem.denyRead`.
+- **The home-directory protection can switch off** if the sandbox's
+  filesystem policy is relaxed, a managed read-path lock is on, or the
+  project folder's name contains glob characters (`*`, `?`, `[`).
+- **Early-access API.** Plugin hooks may change between Claude Code
+  releases. If prompts come back after an update, check the status line and
+  `/read-block-log`, and re-run the tests.
+
+## Test results
+
+The mod was tested end to end on macOS, Fedora 44 and Ubuntu, with Claude
+Code 2.1.285 to 2.1.293. In short:
+
+- **Prompts removed** for single commands the read block couldn't check
+  (`cd dir && cat file`, one-line `python3 -c "…"`) and for chained commands
+  made of them.
+- **Nothing else changed:** commands that didn't prompt before still don't,
+  and the Read tool stays blocked outside the project.
+- **The sandbox still protects** your home directory, SSH agent, keyring,
+  D-Bus, Docker daemon and other processes, with or without the mod. The
+  classifier additionally refuses credential probes such as `ssh-add -l`.
+
+Full tables and details are in [tests/RESULTS.md](tests/RESULTS.md).
+
+### Running the tests yourself
+
+- **Unit tests:** `claude plugin test sandboxed-read-block` (25 tests).
+- **End to end:** `tests/run-tests.sh [--push] [prompt file]` runs a test
+  prompt three times without anyone at the keyboard: without the mod, with
+  it, and with a temporary `ask` copy. It writes the reports to
+  `results/<prompt name>/`. Without a person to answer, a prompt shows up as
+  a denial with Claude Code's message, so the reports show which commands
+  would have prompted. `--push` commits and pushes the reports.
+  - `tests/test-prompt.txt` (default): basic read-block and sandbox checks.
+  - `tests/test-prompt-compound.txt`: single, multi-line and chained
+    commands.
+  - `tests/test-prompt-linux.txt`: what the sandbox hides on Linux.
+
+  Remove `CLAUDE_CODE_PLUGIN_DIRS` from `~/.claude/settings.json` while
+  testing (the script tells you if it's there): an installed copy of the mod
+  would load in every run and spoil the comparison.
 
 ---
 
