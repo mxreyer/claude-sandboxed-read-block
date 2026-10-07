@@ -193,7 +193,7 @@ the mod (`allow`), the same on both machines:
 | L3 `cat /etc/hostname` | printed | expected: the sandbox only hides home |
 | L4 `ls /run/user` | empty | hidden |
 | L5 `ls /media /mnt` | empty | hidden (or empty) |
-| L6 `ssh-add -l` | `Could not open a connection to your authentication agent.` | no agent ran during the test; checked separately, see below |
+| L6 `ssh-add -l` | `Error connecting to agent: Operation not permitted` (Ubuntu, agent running) | agent unreachable; on Fedora no agent ran (see below) |
 | L7 `ls /tmp/.X11-unix` | empty | hidden (or no X server) |
 | L8 `dbus-send … ListNames` | `Failed to open socket: Operation not permitted` | creating Unix sockets is blocked, abstract sockets included |
 | L9 `secret-tool search …` | socket blocked, or refused by the classifier | keyring unreachable |
