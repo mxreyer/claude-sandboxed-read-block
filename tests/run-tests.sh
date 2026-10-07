@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
-# Runs a test prompt headless three times and pushes the results to
-# results/<prompt name>/:
+# Runs a test prompt headless from the repository root, three times, and
+# writes the reports to results/<prompt name>/:
 #   baseline        no mod
 #   with-mod-allow  the mod with its default verdict (allow)
 #   with-mod-ask    a temporary copy of the mod whose default verdict is ask
-# The repo's own copy of the mod is never edited.
+# Headless, a prompt that would reach you becomes a denial with Claude Code's
+# message, so the reports show which commands prompt. The repo's own copy of
+# the mod is never edited.
 #
-# Usage: ./run-tests.sh [--no-push] [prompt file, default test-prompt.txt]
+# Usage: tests/run-tests.sh [--push] [prompt file, default tests/test-prompt.txt]
+#   --push  commit results/<prompt name>/ and push it to the current branch
 set -euo pipefail
 
-BRANCH=claude/focused-feynman-t9yicz
-PUSH=1
-PROMPT_FILE=test-prompt.txt
+PUSH=0
+PROMPT_FILE=tests/test-prompt.txt
 for arg in "$@"; do
-  if [[ "$arg" == "--no-push" ]]; then PUSH=0; else PROMPT_FILE="$arg"; fi
+  if [[ "$arg" == "--push" ]]; then PUSH=1; else PROMPT_FILE="$arg"; fi
 done
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
 if [[ ! -f "$PROMPT_FILE" ]]; then
@@ -37,8 +39,8 @@ if [[ -n "$(git status --porcelain -- sandboxed-read-block "$PROMPT_FILE")" ]]; 
   exit 1
 fi
 
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 if [[ $PUSH -eq 1 ]]; then
-  git checkout "$BRANCH"
   git pull --ff-only origin "$BRANCH"
 fi
 
@@ -80,11 +82,12 @@ run with-mod-allow --plugin-dir "$REPO/sandboxed-read-block"
 run with-mod-ask --plugin-dir "$WORK/sandboxed-read-block"
 
 if [[ $PUSH -eq 0 ]]; then
-  echo "Results are in $OUT (not pushed)."
+  echo "Results are in results/$NAME/."
   exit 0
 fi
 
-git add results
+# results/ is gitignored; --push adds this run's reports on purpose.
+git add -f "results/$NAME"
 git commit -m "Test results ($NAME) $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 git push origin "$BRANCH"
-echo "Pushed results to $BRANCH."
+echo "Pushed results/$NAME/ to $BRANCH."

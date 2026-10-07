@@ -4,14 +4,31 @@ A Claude Code mod for setups that run the **sandbox** together with
 `permissions.blockReadsOutsideWorkingDirectories`.
 
 The read block prompts on any Bash command whose read targets it can't verify
-from the command text (`cd dir && cat file`, paths outside the project). With
-the sandbox on, the same setting also denies sandboxed commands your home
-directory, so for Bash these prompts are redundant. The mod removes them;
-Claude's own file tools (Read, Edit, …) stay blocked as before.
+from the command text (`cd dir && cat file`, inline `python3 -c "…"`, paths
+outside the project). With the sandbox on, the same setting also denies
+sandboxed commands your home directory, so for Bash these prompts are
+redundant. The mod removes them; Claude's own file tools (Read, Edit, …) stay
+blocked as before.
+
+## Install
+
+Copy the `sandboxed-read-block/` folder somewhere stable, add it to
+`~/.claude/settings.json` and restart Claude Code:
+
+```json
+"env": {
+  "CLAUDE_CODE_PLUGIN_DIRS": "~/claude-plugins/sandboxed-read-block"
+}
+```
+
+For a single session: `claude --plugin-dir ./sandboxed-read-block`.
+
+While loaded, the mod pins `read-block mod on` under the prompt. Copy the
+folder again after any update and restart.
 
 ## How it works
 
-`hooks/register.ts` hooks `tool.check` for Bash. It changes the engine's
+`hooks/register.ts` hooks `tool.check` for Bash. It changes Claude Code's
 verdict only when all of these hold:
 
 - the verdict is `ask` and its reason names
@@ -24,7 +41,7 @@ verdict only when all of these hold:
   `allowUnsandboxedCommands: false`);
 - the command doesn't mention anything in `sandbox.excludedCommands`.
 
-In every other case, including a hook error, the engine's own verdict
+In every other case, including a hook error, Claude Code's own verdict
 stands.
 
 **Compound commands.** When two or more parts of a chained command need
@@ -37,29 +54,25 @@ at least one is held up by it. Any other reason keeps the prompt, and so does
 anything it can't split with certainty: `$(…)`, backticks, `( )`, `{ }`,
 heredocs, unbalanced quotes.
 
-The `verdict` option sets what the mod answers:
+### Options
 
-| Value | Effect |
-|---|---|
-| `allow` (default) | The command runs; the sandbox confines it. |
-| `ask` | Drops the read-block reason but still asks. In 2.1.289 that ask shows a permission dialog rather than going to the auto-mode classifier, so it doesn't remove prompts. |
+Set in `/config`, or in `~/.claude/settings.json` under
+`"pluginConfigs": { "sandboxed-read-block": { … } }`.
 
-While loaded, the mod pins `read-block mod on` under the prompt, so a
-missing line means it isn't loaded. Each prompt it skips shows a short
-notice with the command and bumps a count on that line (`read-block mod on ·
-3 prompts skipped`; the count restarts when the mod reloads). When it sees a
-read-block prompt but keeps it, a notice names the check that kept it (e.g.
-`Kept a read-block prompt: the sandbox is off`).
+| Option | Default | Effect |
+|---|---|---|
+| `verdict` | `allow` | `allow` runs the command; the sandbox confines it. `ask` drops the read-block reason but still asks; tested in 2.1.289, that ask shows a dialog rather than going to the auto-mode classifier, so it doesn't remove prompts. |
+| `debug` | off | Shows a notice with Claude Code's reason for every Bash prompt the mod leaves alone. Noisy: in auto mode most commands get a generic ask that the classifier then approves. |
 
-`/read-block-log` lists the mod's last 20 Bash permission checks (newest
-first): the command, Claude Code's verdict and reason, and what the mod did.
-Run it right after an unexpected prompt.
+### Seeing what it does
 
-If a prompt appears without any notice, turn on the `debug` option (`/config`,
-"Show every Bash prompt's reason"): each Bash prompt the mod leaves alone then
-shows the reason Claude Code gave it. A compound command can be asked for a
-reason other than the read block (e.g. "Multiple directory changes in one
-command require approval for clarity"), which the mod deliberately keeps.
+- Each skipped prompt shows a notice with the command and bumps a count on
+  the status line (`read-block mod on · 3 prompts skipped`).
+- A read-block prompt the mod keeps shows a notice naming the check that kept
+  it (e.g. `Kept a read-block prompt: the sandbox is off`).
+- `/read-block-log` lists the last 20 Bash permission checks, newest first:
+  the command, Claude Code's verdict and reason, and what the mod did. Run it
+  right after an unexpected prompt.
 
 ## Why not `autoAllowBashIfSandboxed: true`?
 
@@ -86,50 +99,41 @@ Untested: whether `autoAllowBashIfSandboxed: true` removes the read-block
 prompts at all. Those prompts bypass the classifier and may bypass the
 auto-allow too.
 
-## Install
-
-Add the folder to `~/.claude/settings.json` and restart Claude Code:
-
-```json
-"env": {
-  "CLAUDE_CODE_PLUGIN_DIRS": "/absolute/path/to/sandboxed-read-block"
-}
-```
-
-For a single session: `claude --plugin-dir ./sandboxed-read-block`.
-
 ## Limits
 
 - **Commands it lets through get no further review.** Neither you nor the
   classifier checks them; only the sandbox's read and write limits apply.
-  Commands with literal paths and no `cd` don't trigger the read block, so
-  they keep the normal checks.
-- **Only the home directory is protected for Bash.** The sandbox
-  doesn't block paths such as `/etc`. Add anything private outside your home
-  to `sandbox.filesystem.denyRead`.
+- **Only the home directory is protected for Bash.** The sandbox doesn't
+  block paths such as `/etc`. Add anything private outside your home to
+  `sandbox.filesystem.denyRead`.
 - **The sandbox side of the read block may be off** if the sandbox's
   filesystem policy is relaxed, a managed read-path lock is on, or the
   working directory's name contains glob characters.
-- **The mod depends on the wording of the engine's reason.** If a release
-  rewords it, the mod stops matching and the prompts return; it never allows
-  more.
+- **The mod depends on the wording of Claude Code's reasons.** If a release
+  rewords them, the mod stops matching and the prompts return; it never
+  allows more.
 - **The hook API is early access** and may change between releases.
 
 ## Testing
 
-- Unit tests: `claude plugin test sandboxed-read-block` (engine verdicts
-  mocked with the reason strings from Claude Code 2.1.289).
-- End to end: `./run-tests.sh [prompt file]` runs a test prompt headless
-  without the mod, with it (`allow`) and with a temporary `ask` copy, then
-  commits and pushes `results/<prompt name>/` (`--no-push` keeps them
-  local). Headless, a prompt that would reach you becomes a denial with
-  Claude Code's message, so each run shows which commands prompt.
-  - `test-prompt.txt` (default): the read block, the sandbox, the Read tool
-    and what the sandbox exposes.
-  - `test-prompt-compound.txt`: single, multi-line and chained commands, to
-    see which shapes still prompt with the mod.
+- **Unit tests:** `claude plugin test sandboxed-read-block` (25 tests;
+  Claude Code's verdicts mocked with its real reason strings).
+- **End to end:** `tests/run-tests.sh [--push] [prompt file]` runs a test
+  prompt headless from the repository root without the mod, with it
+  (`allow`) and with a temporary `ask` copy, writing the reports to
+  `results/<prompt name>/` (gitignored; `--push` commits and pushes them).
+  Headless, a prompt that would reach you becomes a denial with Claude
+  Code's message. Remove `CLAUDE_CODE_PLUGIN_DIRS` from your settings while
+  testing; the script refuses to run otherwise, since an installed copy
+  would load in every run.
+  - `tests/test-prompt.txt` (default): the read block, the sandbox, the Read
+    tool, and what the sandbox exposes beyond files.
+  - `tests/test-prompt-compound.txt`: single, multi-line and chained
+    commands.
 
-Results on macOS with 2.1.289:
+### Results (macOS)
+
+`tests/test-prompt.txt`, Claude Code 2.1.289:
 
 | Test | Without the mod | With the mod (`allow`) |
 |---|---|---|
@@ -149,8 +153,7 @@ gap before relying on the mod:
 | T10 `secret-tool search --all service x` | fail | the keyring is reachable over D-Bus: deny `/run/user` and check that Unix sockets are blocked |
 | T11 `ls /proc` | list only a few PIDs | other processes' environment variables are readable |
 
-`test-prompt-compound.txt` on macOS with 2.1.292 (headless, so a prompt shows
-as a denial):
+`tests/test-prompt-compound.txt`, Claude Code 2.1.292:
 
 | Test | Command shape | Without the mod | With the mod (`allow`) |
 |---|---|---|---|

@@ -31,7 +31,7 @@ C5  (chain: a plain read, then one-line inline code)
 grep -c "mod" README.md; python3 -I -c "print(open('README.md').read()[:40])"
 
 C6  (chain: two pieces of one-line inline code)
-python3 -I -c "print(open('README.md').read()[:10])"; python3 -I -c "print(open('test-prompt.txt').read()[:10])"
+python3 -I -c "print(open('README.md').read()[:10])"; python3 -I -c "print(open('tests/test-prompt.txt').read()[:10])"
 
 C7  (two cds in one command)
 cd sandboxed-read-block && cat hooks/hooks.json; cd hooks && cat hooks.json
