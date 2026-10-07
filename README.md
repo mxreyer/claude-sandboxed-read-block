@@ -239,9 +239,12 @@ Full tables and details are in [tests/RESULTS.md](tests/RESULTS.md).
     commands.
   - `tests/test-prompt-linux.txt`: what the sandbox hides on Linux.
 
-  Remove `CLAUDE_CODE_PLUGIN_DIRS` from `~/.claude/settings.json` while
-  testing (the script tells you if it's there): an installed copy of the mod
-  would load in every run and spoil the comparison.
+  The results were produced with the settings in
+  [`tests/settings.example.json`](tests/settings.example.json); the Linux
+  checks in particular depend on its `denyRead` entries. Remove
+  `CLAUDE_CODE_PLUGIN_DIRS` from `~/.claude/settings.json` while testing
+  (the script tells you if it's there): an installed copy of the mod would
+  load in every run and spoil the comparison.
 
 ---
 

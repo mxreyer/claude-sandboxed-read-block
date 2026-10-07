@@ -1,0 +1,53 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": false,
+    "allowUnsandboxedCommands": false,
+    "failIfUnavailable": true,
+    "filesystem": {
+      "denyRead": [
+        "~/.bash_history", "~/.zsh_history",
+        "/Network", "/media", "/mnt",
+        "/run/user", "/tmp/ssh-*", "/tmp/.X11-unix",
+        "**/.env", "**/.env.*"
+      ],
+      "denyWrite": [
+        "~/.bash_history", "~/.zsh_history",
+        "~/.ssh", "~/.aws/credentials",
+        "~/.config/gh/hosts.yml", "~/.kube/config",
+        "~/dotfiles/**"
+      ]
+    },
+    "credentials": {
+      "files": [
+        { "path": "~/.ssh", "mode": "deny" },
+        { "path": "~/.aws/credentials", "mode": "deny" },
+        { "path": "~/.config/gh/hosts.yml", "mode": "deny" },
+        { "path": "~/.kube/config", "mode": "deny" }
+      ],
+      "envVars": [
+        { "name": "BORG_PASSPHRASE", "mode": "deny" },
+        { "name": "BORG_PASS_FILE", "mode": "deny" }
+      ]
+    }
+  },
+  "permissions": {
+    "defaultMode": "auto",
+    "blockReadsOutsideWorkingDirectories": true,
+    "disableBypassPermissionsMode": "disable",
+    "allow": [
+      "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)",
+      "Bash(ls:*)", "Bash(wc:*)", "Bash(head:*)", "Bash(tail:*)"
+    ],
+    "deny": [
+      "Read(~/.ssh/**)", "Edit(~/.ssh/**)",
+      "Read(~/.aws/**)", "Edit(~/.aws/**)",
+      "Read(~/.config/gh/**)", "Edit(~/.config/gh/**)",
+      "Read(~/.kube/**)", "Edit(~/.kube/**)",
+      "Read(~/.bash_history)", "Edit(~/.bash_history)",
+      "Read(~/.zsh_history)", "Edit(~/.zsh_history)",
+      "Read(~/dotfiles/**)", "Edit(~/dotfiles/**)",
+      "Read(**/.env)", "Read(**/.env.*)"
+    ]
+  }
+}

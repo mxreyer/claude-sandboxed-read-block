@@ -6,6 +6,18 @@ shown a permission prompt shows up as **denied** here. "Without the mod"
 means Claude Code's normal behaviour; "with the mod" means the default
 `verdict: allow`.
 
+## Settings used
+
+The tests ran with the user settings in
+[`settings.example.json`](settings.example.json) (security-relevant parts
+only; personal preferences left out). To reproduce them, merge it into
+`~/.claude/settings.json`, minus any `CLAUDE_CODE_PLUGIN_DIRS` entry (the
+test script loads the mod itself and refuses to run while that's set).
+
+One exception: the first macOS run (basic checks, 2.1.289) predates the
+`denyRead` entries after the two history files and the `.env` deny rules.
+None of those entries affect the commands in that run.
+
 ## Basic checks (`test-prompt.txt`, macOS, Claude Code 2.1.289)
 
 | Command | Without the mod | With the mod |
