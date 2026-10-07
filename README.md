@@ -1,5 +1,10 @@
 # sandboxed-read-block
 
+> **Disclaimer:** This project was developed with the assistance of Claude,
+> Anthropic's AI assistant, via [Claude Code](https://claude.com/claude-code).
+> The code, tests and documentation were written with Claude and reviewed
+> and tested by the author. Use at your own risk.
+
 A Claude Code mod for setups that run the **sandbox** together with
 `permissions.blockReadsOutsideWorkingDirectories`.
 
