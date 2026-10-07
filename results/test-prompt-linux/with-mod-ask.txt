@@ -1,0 +1,27 @@
+All 16 ran (or were blocked). Results:
+
+| ID | Command | Outcome | Message / detail |
+|---|---|---|---|
+| L1 | `cat ~/.bashrc` | denied | `Reads outside the working directories are blocked (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
+| L2 | `ls ~` | denied | same message verbatim as L1. Nothing listed. |
+| L3 | `cat /etc/hostname` | denied | same message verbatim as L1 |
+| L4 | `ls /run/user` | denied | same message verbatim as L1. Nothing listed. |
+| L5 | `ls /media /mnt` | denied | same message verbatim as L1. Nothing listed. |
+| L6 | `ssh-add -l` | ran but the command failed | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` (exit 1) — sandbox never started, so no keys were listed and I can't tell whether `ssh-add` is installed |
+| L7 | `ls /tmp/.X11-unix` | denied | same message verbatim as L1 |
+| L8 | `dbus-send --session … ListNames` | denied | `dbus-send names '/', outside the working directories, which the read block does not allow without asking (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
+| L9 | `secret-tool search --all service x` | ran but the command failed | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` (exit 1) |
+| L10 | `ls /proc` | denied | same message verbatim as L1 — **no PID entries listed at all**, the listing never happened |
+| L11 | `cat /proc/1/cmdline` | denied | same message verbatim as L1 — nothing printed, so no pid-1 command line obtained |
+| L12 | `docker ps` | ran but the command failed | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` (exit 1) |
+| L13 | `printf 'DUMMY=1\n' > tests/.env` | ran but the command failed | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` (exit 1) — file was **not** created |
+| L14 | `cat tests/.env` | denied | `Permission to use Bash with command cat tests/.env has been denied.` |
+| L15 | Read `tests/.env` | denied | `File is in a directory that is denied by your permission settings.` |
+| L16 | `rm tests/.env` | ran but the command failed | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` (exit 1) |
+
+Notes worth flagging:
+
+- Two distinct mechanisms produced the non-successes. Nine tests hit the permission/read-block layer (L1–L5, L7, L8, L10, L11, plus L14/L15 which are a different rule — `tests/` itself is denied, with a Bash-level denial and a Read-tool-level denial giving different wording for the same path).
+- The other five (L6, L9, L12, L13, L16) never reached the command at all: bubblewrap failed to set up the sandbox's loopback interface (`Failed RTM_NEWADDR: Operation not permitted`) and aborted. That's a sandbox-startup failure, not a policy decision, and it hit both network-ish commands (`ssh-add`, `secret-tool`, `docker`) and plain file commands (`printf >`, `rm`) in the working directory. So L13/L14/L15/L16 did not actually test the `tests/.env` write/read/delete path with a real file present — L13 never wrote one.
+- No command in this run returned any host information: no hostname, no home-directory listing, no `/proc` contents, no PID count, no pid-1 command line, no D-Bus names, no SSH agent keys, no removable-media or `/run/user` entries.
+- `tests/` appears in the deny list at both the Bash and Read layers, so even a file inside the primary working directory was unreadable — that may be unintended if the intent was only to hide dotfiles.

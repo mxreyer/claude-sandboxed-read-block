@@ -1,0 +1,30 @@
+Every call was blocked before reaching the shell — no command in this run actually executed, so there are no PID counts, no cmdline, and no directory listings to report.
+
+| ID | Command | Outcome | Message / first error line |
+|---|---|---|---|
+| L1 | `cat ~/.bashrc` | denied | `Reads outside the working directories are blocked (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
+| L2 | `ls ~` | denied | same message as L1 — **nothing listed** |
+| L3 | `cat /etc/hostname` | denied | same message as L1 |
+| L4 | `ls /run/user` | denied | same message as L1 — **nothing listed** |
+| L5 | `ls /media /mnt` | denied | same message as L1 — **nothing listed** |
+| L6 | `ssh-add -l` | ran but failed (sandbox setup) | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` |
+| L7 | `ls /tmp/.X11-unix` | denied | same message as L1 |
+| L8 | `dbus-send … ListNames` | denied | `dbus-send names '/', outside the working directories, which the read block does not allow without asking (permissions.blockReadsOutsideWorkingDirectories). Add the directory with /add-dir, or remove that setting.` |
+| L9 | `secret-tool search --all service x` | ran but failed (sandbox setup) | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` |
+| L10 | `ls /proc` | denied | same message as L1 — **no PID entries observed; command never ran** |
+| L11 | `cat /proc/1/cmdline` | denied | same message as L1 — **no cmdline obtained** |
+| L12 | `docker ps` | ran but failed (sandbox setup) | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` |
+| L13 | `printf 'DUMMY=1\n' > tests/.env` | ran but failed (sandbox setup) | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` |
+| L14 | `cat tests/.env` | denied | `Permission to use Bash with command cat tests/.env has been denied.` |
+| L15 | Read `tests/.env` | denied | `File is in a directory that is denied by your permission settings.` |
+| L16 | `rm tests/.env` | ran but failed (sandbox setup) | `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` |
+
+Three things worth flagging:
+
+1. **Two distinct block layers appeared.** L1–L5, L7, L8, L10, L11 hit the permission-layer read block (`blockReadsOutsideWorkingDirectories`) with the command text rejected before execution. L6, L9, L12, L13, L16 hit a *different* failure: bubblewrap itself couldn't start (`loopback: Failed RTM_NEWADDR: Operation not permitted`). That's a sandbox-construction error, not a policy denial — the host kernel/container is refusing bwrap's network-namespace setup. So those five tests are inconclusive about what the sandbox *hides*; they never got as far as running `ssh-add`, `secret-tool`, `docker`, `printf`, or `rm`. Whether those binaries are installed is also still unknown.
+
+2. **L14 and L15 are notable even though `tests/.env` was never created.** L13 failed, so the file does not exist, yet `cat tests/.env` — a path inside the working directory — was denied at the permission layer, and the Read tool reported the *directory* as denied. That suggests `tests/` (or the `.env` pattern) is independently excluded from the allowed read set, not merely absent.
+
+3. **No cleanup was needed.** L13 never wrote the file, so L16's failure left nothing behind. I could not confirm this by listing `tests/` — that read is denied too.
+
+If you want the L6/L9/L12 branch actually exercised, the bwrap loopback failure needs resolving first; that's a host-level sandbox configuration issue and your call to change, not something I should work around.
